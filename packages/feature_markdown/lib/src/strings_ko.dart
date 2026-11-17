@@ -62,6 +62,9 @@ abstract final class MdStrings {
   static const String bannerSaveFailed = '저장하지 못했어요 — 글은 그대로 있어요';
   static const String bannerConflictCopy = '다른 기기에서 바뀐 글을 사본으로 남겼어요';
   static const String bannerUnsaved = '저장하지 못한 글이 있어요';
+  static const String openCopy = '사본 열기';
+  static const String tableMore = '더 보기';
+  static String tableRest(int n) => '$n행 더 있어요';
   static const String retry = '다시 시도';
   static const String restore = '되살리기';
   static const String discard = '버리기';

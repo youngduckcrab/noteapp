@@ -28,10 +28,16 @@ final SettingKey<bool> kMarkdownSplitViewSetting = SettingKey.boolean(
   scope: SettingScope.device,
 );
 
-/// Text that could not be saved when the app went to the background:
-/// `{noteId, text, at}` (the last one only).
+/// Text that could not be saved when the screen was left or the app went to the
+/// background, per document: `{<noteId>: {text, base, at}}` — `base` is the textVersion
+/// (Hlc string, or null) the text was written on, so a restore saves against it and the
+/// store keeps a newer text as a conflict copy (CORE L1). An entry is dropped once a later
+/// save of that document succeeds, or by [버리기] / [복원].
 final SettingKey<Map<String, Object?>> kMarkdownUnsavedSetting =
     SettingKey.jsonMap('markdown.unsaved', scope: SettingScope.device);
+
+/// Documents kept in [kMarkdownUnsavedSetting] at most (the oldest go).
+const int kMaxUnsavedDocs = 8;
 
 /// Body width (and landscape) from which 나란히 is offered.
 const double kSplitMinWidth = 1100;
@@ -51,6 +57,7 @@ class MarkdownScreen extends ConsumerStatefulWidget {
     this.initialEdit = false,
     required this.onClose,
     this.onOpenAsNote,
+    this.onOpenMarkdown,
   });
 
   /// The MD 문서 (a note with `isMarkdown`).
@@ -70,6 +77,9 @@ class MarkdownScreen extends ConsumerStatefulWidget {
   /// When [noteId] is a handwriting note: [노트로 열기]. null hides the button.
   final VoidCallback? onOpenAsNote;
 
+  /// Opens another MD 문서 (the conflict copy's [사본 열기]). null hides the button.
+  final ValueChanged<NoteId>? onOpenMarkdown;
+
   @override
   ConsumerState<MarkdownScreen> createState() => _MarkdownScreenState();
 }
@@ -78,6 +88,9 @@ enum _Mode { view, edit, split }
 
 class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
   late final MarkdownController _c;
+
+  /// Read once: also used while (and after) the screen is disposed.
+  late final SettingsRepository _settings;
   late final AppLifecycleListener _life;
   final MdViewController _view = MdViewController();
   final MdViewController _preview = MdViewController();
@@ -91,6 +104,9 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
 
   MdDocument _parsed = MdDocument.empty;
   String? _parsing;
+
+  /// The controller's revision the shown parse was made at (an outside change bumps it).
+  int _parsedRevision = 0;
   Timer? _parseTimer;
 
   bool _landed = false;
@@ -101,6 +117,9 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
   bool _receivingLong = false;
 
   Map<String, Object?>? _unsaved;
+
+  /// This screen wrote an entry for its document into kMarkdownUnsavedSetting.
+  bool _keptUnsaved = false;
   bool _leaving = false;
   bool _wasLoaded = false;
 
@@ -109,10 +128,12 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
     super.initState();
     // Read once: the controller outlives this state by its last flush (dispose).
     final store = ref.read(noteStoreProvider);
+    _settings = ref.read(settingsRepositoryProvider);
     _c = MarkdownController(
       noteId: widget.noteId,
       repository: ref.read(markdownRepositoryProvider),
       flushStore: store.flush,
+      onSaved: _onSaved,
     )..addListener(_onController);
     if (widget.initialEdit) {
       _mode = _Mode.edit;
@@ -127,15 +148,16 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
   }
 
   Future<void> _readSettings() async {
-    final settings = ref.read(settingsRepositoryProvider);
+    final settings = _settings;
     try {
       final split = await settings.get(kMarkdownSplitViewSetting);
       final unsaved = await settings.get(kMarkdownUnsavedSetting);
       if (!mounted) return;
+      final mine = unsaved[widget.noteId];
       setState(() {
         _splitSetting = split;
-        if (unsaved['noteId'] == widget.noteId && unsaved['text'] is String) {
-          _unsaved = unsaved;
+        if (mine is Map && mine['text'] is String) {
+          _unsaved = Map<String, Object?>.of(mine.cast<String, Object?>());
         }
       });
       _checkUnsaved();
@@ -151,9 +173,22 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
     _highlightTimer?.cancel();
     _receivingTimer?.cancel();
     _c.removeListener(_onController);
-    // Save what is left, then let the controller go (the text is never dropped).
+    // Save what is left, then let the controller go. When that save fails too (the route
+    // was replaced or popped some other way than [←] / back), the text is kept on this
+    // device like on app pause — it is never dropped silently.
     final c = _c;
-    unawaited(c.flush(store: true).whenComplete(c.dispose));
+    final settings = _settings;
+    final noteId = widget.noteId;
+    unawaited(() async {
+      try {
+        final ok = await c.flush(store: true);
+        if (!ok && c.dirty) {
+          await _keepUnsaved(settings, noteId, c.encoded, c.base);
+        }
+      } finally {
+        c.dispose();
+      }
+    }());
     _view.dispose();
     _preview.dispose();
     _editorFocus.dispose();
@@ -204,6 +239,13 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
     }
   }
 
+  /// A save of this document succeeded: text this screen kept for later is out of date.
+  void _onSaved() {
+    if (!_keptUnsaved) return;
+    _keptUnsaved = false;
+    unawaited(_clearUnsavedSetting());
+  }
+
   // --- parsing ------------------------------------------------------------------
 
   void _ensureParsed({bool immediate = false}) {
@@ -243,7 +285,27 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
     }
     if (!mounted) return;
     if (_parsing == src) _parsing = null;
+    // Another device's text (or a restore) replaced the buffer while 보기 shows it: keep
+    // the block at the top of the view at the top (08-markdown 8.7 ③), found by its key.
+    String? topKey;
+    ({int block, double dy})? anchor;
+    if (_mode == _Mode.view && _c.revision != _parsedRevision) {
+      anchor = _view.topAnchor();
+      if (anchor != null && anchor.block < _parsed.blocks.length) {
+        topKey = _parsed.blocks[anchor.block].key;
+      }
+    }
+    _parsedRevision = _c.revision;
     setState(() => _parsed = doc);
+    if (topKey != null) {
+      final now = doc.blocks.indexWhere((b) => b.key == topKey);
+      final dy = anchor!.dy;
+      if (now >= 0 && now != anchor.block) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) unawaited(_view.restoreAnchor(now, dy));
+        });
+      }
+    }
     _maybeLand();
     if (_c.text.text != src && _mode != _Mode.edit) _ensureParsed();
   }
@@ -280,7 +342,7 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
     _editorFocus.unfocus();
     setState(() => _mode = _Mode.view);
     _ensureParsed(immediate: true);
-    unawaited(_c.flush());
+    unawaited(_c.flush(store: true));
     if (sel.isValid) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || _parsed.source != _c.text.text) return;
@@ -315,27 +377,60 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
     });
     if (on) _ensureParsed(immediate: true);
     unawaited(
-      ref
-          .read(settingsRepositoryProvider)
-          .set(kMarkdownSplitViewSetting, on)
-          .catchError((Object _) {}),
+      _settings.set(kMarkdownSplitViewSetting, on).catchError((Object _) {}),
     );
   }
 
   // --- leaving ------------------------------------------------------------------
 
   Future<void> _onBackground() async {
+    final settings = _settings;
     final ok = await _c.flush(store: true);
     if (ok || !_c.dirty) return;
     // Cannot ask now: keep the text on this device for the next opening.
+    if (await _keepUnsaved(settings, widget.noteId, _c.encoded, _c.base)) {
+      _keptUnsaved = true;
+      // A save that succeeded while the setting was being written.
+      if (!_c.dirty && mounted) _onSaved();
+    }
+  }
+
+  /// Writes [text] (written on [base]) into kMarkdownUnsavedSetting for [noteId].
+  static Future<bool> _keepUnsaved(
+    SettingsRepository settings,
+    NoteId noteId,
+    String text,
+    Hlc? base,
+  ) async {
     try {
-      await ref.read(settingsRepositoryProvider).set(kMarkdownUnsavedSetting, {
-        'noteId': widget.noteId,
-        'text': _c.encoded,
+      final all = Map<String, Object?>.of(
+        await settings.get(kMarkdownUnsavedSetting),
+      )..remove(noteId);
+      // Old single-slot shape ({noteId, text, at}) and the oldest entries go.
+      all.removeWhere((_, v) => v is! Map);
+      while (all.length >= kMaxUnsavedDocs) {
+        String? oldest;
+        var at = 1 << 62;
+        for (final e in all.entries) {
+          final t = (e.value! as Map)['at'];
+          final ms = t is int ? t : 0;
+          if (ms < at) {
+            at = ms;
+            oldest = e.key;
+          }
+        }
+        all.remove(oldest);
+      }
+      all[noteId] = {
+        'text': text,
+        'base': base?.toString(),
         'at': DateTime.now().millisecondsSinceEpoch,
-      });
+      };
+      await settings.set(kMarkdownUnsavedSetting, all);
+      return true;
     } on Object catch (e) {
       debugPrint('feature_markdown: could not keep unsaved text: $e');
+      return false;
     }
   }
 
@@ -378,9 +473,12 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
       if (!mounted) return;
       switch (choice) {
         case 'copy':
+          // The copy is extra: the text is still saved when the screen goes (or kept
+          // on this device when that fails too).
           await Clipboard.setData(ClipboardData(text: _c.encoded));
           widget.onClose();
         case 'discard':
+          _c.discard();
           widget.onClose();
         default:
           break;
@@ -437,9 +535,13 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
     final offset = _parsed.taskOffsets[i]!;
     final before = _c.text.text;
     final changed = _c.toggleTaskAt(offset);
+    // The text right after the toggle: [되돌리기] flips the box back only while the
+    // buffer is still exactly that (typing in 나란히, another device's text or a second
+    // toggle would move the offsets — then the snack bar's undo does nothing).
+    final after = _c.text.text;
     _ensureParsed(immediate: true);
     if (!await changed && _c.text.text == before) return;
-    if (!mounted) return;
+    if (!mounted || after == before) return;
     final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
     messenger.showSnackBar(
       SnackBar(
@@ -449,14 +551,20 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
           key: MarkdownKeys.taskUndo,
           label: MdStrings.undo,
           onPressed: () {
-            if (_c.text.text.length > offset) {
-              unawaited(_c.toggleTaskAt(offset));
-              _ensureParsed(immediate: true);
-            }
+            if (_c.text.text != after) return;
+            unawaited(_c.toggleTaskAt(offset));
+            _ensureParsed(immediate: true);
           },
         ),
       ),
     );
+  }
+
+  /// [사본 열기]: saves first (like back), then lets the app open the copy.
+  Future<void> _openCopy(NoteId copy) async {
+    _c.dismissConflictCopy();
+    await _c.flush(store: true);
+    if (mounted) widget.onOpenMarkdown?.call(copy);
   }
 
   void _say(String text) {
@@ -551,10 +659,11 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
   Future<void> _restoreUnsaved() async {
     final raw = _unsaved?['text'];
     if (raw is! String) return;
+    final base = Hlc.tryParse(_unsaved?['base'] as String?);
     _c.codec = LineEndingCodec.of(raw);
     final text = _c.codec.decode(raw);
     setState(() => _unsaved = null);
-    await _c.replaceText(text);
+    await _c.restoreText(text, base: base);
     _ensureParsed(immediate: true);
     await _clearUnsavedSetting();
   }
@@ -564,9 +673,19 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
     unawaited(_clearUnsavedSetting());
   }
 
+  /// Drops this document's entry of kMarkdownUnsavedSetting (others stay).
   Future<void> _clearUnsavedSetting() async {
     try {
-      await ref.read(settingsRepositoryProvider).reset(kMarkdownUnsavedSetting);
+      final settings = _settings;
+      final all = Map<String, Object?>.of(
+        await settings.get(kMarkdownUnsavedSetting),
+      );
+      if (all.remove(widget.noteId) == null) return;
+      if (all.isEmpty) {
+        await settings.reset(kMarkdownUnsavedSetting);
+      } else {
+        await settings.set(kMarkdownUnsavedSetting, all);
+      }
     } on Object catch (_) {}
   }
 
@@ -670,7 +789,8 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
               IconButton(
                 key: MarkdownKeys.back,
                 tooltip: MdStrings.back,
-                onPressed: () => unawaited(_leave()),
+                // Same order as system back (08-markdown 8.4): 편집 / 나란히 → 보기 first.
+                onPressed: _onBack,
                 icon: const AppIcon(AppIconKind.back),
               ),
               Expanded(
@@ -730,13 +850,13 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
           IconButton(
             key: MarkdownKeys.undo,
             tooltip: MdStrings.undo,
-            onPressed: v.canUndo ? _c.undo.undo : null,
+            onPressed: v.canUndo ? _c.undoStep : null,
             icon: const AppIcon(AppIconKind.undo),
           ),
           IconButton(
             key: MarkdownKeys.redo,
             tooltip: MdStrings.redo,
-            onPressed: v.canRedo ? _c.undo.redo : null,
+            onPressed: v.canRedo ? _c.redoStep : null,
             icon: const AppIcon(AppIconKind.redo),
           ),
         ],
@@ -891,6 +1011,12 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
           tone: MdBannerTone.warning,
           text: MdStrings.bannerConflictCopy,
           actions: [
+            if (widget.onOpenMarkdown != null)
+              TextButton(
+                key: MarkdownKeys.bannerOpenCopy,
+                onPressed: () => _openCopy(_c.conflictCopyId!),
+                child: const Text(MdStrings.openCopy),
+              ),
             TextButton(
               key: MarkdownKeys.bannerDismiss,
               onPressed: _c.dismissConflictCopy,
@@ -978,7 +1104,8 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
       Expanded(
         child: MdEditor(
           controller: _c.text,
-          undoController: _c.undo,
+          onUndo: _c.undoStep,
+          onRedo: _c.redoStep,
           focusNode: _editorFocus,
           readOnly: !_c.canEdit,
         ),
@@ -986,7 +1113,9 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
       MdAccessoryRow(
         controller: _c.text,
         focusNode: _editorFocus,
-        undoController: narrow ? _c.undo : null,
+        undo: narrow ? _c.undo : null,
+        onUndo: _c.undoStep,
+        onRedo: _c.redoStep,
       ),
     ],
   );

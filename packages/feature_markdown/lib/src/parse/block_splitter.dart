@@ -102,6 +102,23 @@ List<SourceBlock> splitBlocks(String text) {
   }
 
   final n = lines.length;
+  // The last lines holding a math closer: a `$$` / `\[` line opens a math block only
+  // when its closer follows (pandoc: an unclosed `$$` is text — review A6).
+  var lastDollar = -1;
+  var lastBracket = -1;
+  for (var k = 0; k < n; k++) {
+    if (lines[k].contains(r'$$')) lastDollar = k;
+    if (lines[k].contains(r'\]')) lastBracket = k;
+  }
+  bool opensMath(int k) {
+    final l = lines[k];
+    final dollar = _dollarMath.hasMatch(l);
+    if (!dollar && !_bracketMath.hasMatch(l)) return false;
+    final rest = l.substring(l.indexOf(dollar ? r'$$' : r'\[') + 2);
+    if (rest.contains(dollar ? r'$$' : r'\]')) return true;
+    return (dollar ? lastDollar : lastBracket) > k;
+  }
+
   var i = 0;
   // YAML front matter: '---' on the first line, closed by '---' or '...'.
   if (lines.first.trimRight() == '---') {
@@ -134,7 +151,7 @@ List<SourceBlock> splitBlocks(String text) {
       i++;
       continue;
     }
-    if (_dollarMath.hasMatch(line) || _bracketMath.hasMatch(line)) {
+    if (opensMath(i)) {
       final dollar = _dollarMath.hasMatch(line);
       final close = dollar ? r'$$' : r'\]';
       final rest = line.substring(line.indexOf(dollar ? r'$$' : r'\[') + 2);
@@ -204,8 +221,7 @@ List<SourceBlock> splitBlocks(String text) {
       final indented = _isIndented(l);
       if (!(kind == SourceBlockKind.list && indented)) {
         if (_heading.hasMatch(l) ||
-            _dollarMath.hasMatch(l) ||
-            _bracketMath.hasMatch(l) ||
+            opensMath(i) ||
             _htmlComment.hasMatch(l) ||
             _htmlRaw.hasMatch(l)) {
           break;

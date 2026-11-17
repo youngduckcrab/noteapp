@@ -109,6 +109,18 @@ abstract final class MarkdownKeys {
   static ValueKey<String> accessoryButton(String name) =>
       ValueKey('md.accessory.$name');
 
+  /// The fade at the 'start' / 'end' of the symbol row while more of it is hidden there.
+  static ValueKey<String> accessoryFade(String side) =>
+      ValueKey('md.accessory.fade.$side');
+
+  /// [사본 열기] on the conflict-copy banner (shown when the app gives onOpenMarkdown).
+  static const ValueKey<String> bannerOpenCopy = ValueKey(
+    'md.banner.conflictCopy.open',
+  );
+
+  /// The table's [더 보기] (a long table shows its rows in parts).
+  static ValueKey<String> tableMore(int i) => ValueKey('md.table.$i.more');
+
   // --- per element ----------------------------------------------------------------
   static ValueKey<String> block(int i) => ValueKey('md.block.$i');
   static ValueKey<String> task(int i) => ValueKey('md.task.$i');

@@ -97,13 +97,18 @@ MdDocument parseMarkdown(String text) {
     final count = c.tasks - tasksBefore;
     if (count > 0) {
       final marks = TaskMarks.scan(text, start: b.start, end: b.end);
-      if (marks.length == count) {
+      if (marks.length == count &&
+          TaskMarks.matches(
+            text,
+            marks,
+            c.taskInfo.sublist(tasksBefore, tasksBefore + count),
+          )) {
         taskOffsets.addAll(marks);
       } else {
         taskOffsets.addAll(List<int?>.filled(count, null));
         debugPrint(
           'feature_markdown: block $i has $count task boxes but the source scan '
-          'found ${marks.length}; its boxes are display-only',
+          'found ${marks.length} (or other ones); its boxes are display-only',
         );
       }
     }
@@ -217,6 +222,10 @@ final class _Converter {
 
   final md.Document doc;
   int tasks = 0;
+
+  /// Per task box in document order: checked, and the plain text of its item's first
+  /// paragraph (to check the source scan found the same boxes).
+  final List<({bool checked, String text})> taskInfo = [];
   int links = 0;
   int codes = 0;
   int tables = 0;
@@ -341,10 +350,10 @@ final class _Converter {
           list.first is md.Element &&
           (list.first as md.Element).tag == 'input') {
         final box = list.removeAt(0) as md.Element;
-        task = MdTask(
-          checked: box.attributes.containsKey('checked'),
-          index: tasks++,
-        );
+        final checked = box.attributes.containsKey('checked');
+        task = MdTask(checked: checked, index: tasks++);
+        // Its slot now (nested items convert first); the text is filled in below.
+        taskInfo.add((checked: checked, text: ''));
         return true;
       }
       return false;
@@ -363,7 +372,17 @@ final class _Converter {
         }
       }
     }
-    return MdListItem(children: blocks(children), task: task);
+    final converted = blocks(children);
+    final t = task;
+    if (t != null) {
+      taskInfo[t.index] = (
+        checked: t.checked,
+        text: converted.isNotEmpty && converted.first is MdParagraph
+            ? _plain((converted.first as MdParagraph).inlines)
+            : '',
+      );
+    }
+    return MdListItem(children: converted, task: task);
   }
 
   MdTable _table(md.Element e) {

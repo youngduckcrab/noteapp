@@ -93,7 +93,7 @@ void main() {
     expect(field.style?.fontFamily, 'monospace');
   });
 
-  testWidgets('[←] saves before closing; system back in 편집 goes to 보기', (
+  testWidgets('[←] and system back: 편집 → 보기 first, then close (saved)', (
     tester,
   ) async {
     final h = await MdHarness.create(tester);
@@ -110,6 +110,11 @@ void main() {
     await tester.tap(find.byKey(MarkdownKeys.mode));
     await settleMd(tester);
     await _type(tester, 'abc');
+    // [←] follows the same order as system back (08-markdown 8.4).
+    await tester.tap(find.byKey(MarkdownKeys.back));
+    await settleMd(tester);
+    expect(find.byKey(MarkdownKeys.editor), findsNothing);
+    expect(h.closed, 0);
     await tester.tap(find.byKey(MarkdownKeys.back));
     await settleMd(tester);
     await _real(tester);
@@ -143,6 +148,12 @@ void main() {
       expect(find.byKey(MarkdownKeys.bannerSaveFailed), findsOneWidget);
       expect(find.text('저장하지 못했어요'), findsOneWidget);
 
+      // 편집 → 보기 first (the text stays in the buffer), then leaving asks.
+      await tester.tap(find.byKey(MarkdownKeys.back));
+      await settleMd(tester);
+      await _real(tester);
+      await settleMd(tester);
+      expect(h.closed, 0);
       await tester.tap(find.byKey(MarkdownKeys.back));
       await settleMd(tester);
       await _real(tester);
@@ -164,6 +175,8 @@ void main() {
 
       // retry after the store recovers
       repo.fail = false;
+      await tester.pumpWidget(const SizedBox());
+      await _real(tester);
       await h.pump(
         tester,
         id,
@@ -181,9 +194,14 @@ void main() {
       expect(find.byKey(MarkdownKeys.bannerSaveFailed), findsNothing);
       expect(await h.stored(tester, id), '다시');
 
-      // discard
+      // discard: [버리고 나가기] really gives the text up — even when the store works
+      // again by the time the screen is disposed, nothing more is saved.
       repo.fail = true;
       await _type(tester, '버릴 글');
+      await tester.tap(find.byKey(MarkdownKeys.back));
+      await settleMd(tester);
+      await _real(tester);
+      await settleMd(tester);
       await tester.tap(find.byKey(MarkdownKeys.back));
       await settleMd(tester);
       await _real(tester);
@@ -191,6 +209,10 @@ void main() {
       await tester.tap(find.byKey(MarkdownKeys.leaveDiscard));
       await settleMd(tester);
       expect(h.closed, 2);
+      repo.fail = false;
+      await tester.pumpWidget(const SizedBox());
+      await _real(tester, 40);
+      expect(await h.stored(tester, id), '다시');
     },
   );
 

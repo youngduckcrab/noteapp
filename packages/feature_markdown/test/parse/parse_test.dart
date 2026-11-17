@@ -293,11 +293,125 @@ void main() {
       expect(parseMarkdown(src).taskOffsets, marks);
     });
 
+    test('same count, other boxes: the block is display-only (review A4)', () {
+      // The 8-space line is indented code inside the list item, the quote holds the
+      // only real task box. A plain scan found the code line instead: equal counts, so
+      // a tap on the quote's box wrote '- [x] code line' into the code block.
+      const src =
+          '- a\n\n        - [ ] code line\n\n  - b\n\n    > - [ ] quote task\n';
+      final doc = parseMarkdown(src);
+      expect(doc.taskCount, 1);
+      final at = doc.taskOffsets.single;
+      if (at != null) {
+        expect(src.substring(at - 1, src.indexOf('\n', at)), '[ ] quote task');
+      }
+    });
+
+    test('quote boxes inside a list item map to their own line', () {
+      const src = '- item\n\n  > - [ ] 인용 할 일\n  > - [x] 둘째\n';
+      final doc = parseMarkdown(src);
+      expect(doc.taskCount, 2);
+      expect(doc.taskOffsets.map((o) => src[o!]), [' ', 'x']);
+      expect(src.substring(doc.taskOffsets[0]! + 3).startsWith('인용'), isTrue);
+    });
+
+    test('matches: checked state and first word must agree', () {
+      const src = '- [ ] 하나\n- [x] 둘';
+      final marks = TaskMarks.scan(src);
+      expect(
+        TaskMarks.matches(src, marks, [
+          (checked: false, text: '하나'),
+          (checked: true, text: '둘'),
+        ]),
+        isTrue,
+      );
+      expect(
+        TaskMarks.matches(src, marks, [
+          (checked: true, text: '하나'),
+          (checked: true, text: '둘'),
+        ]),
+        isFalse,
+      );
+      expect(
+        TaskMarks.matches(src, marks, [
+          (checked: false, text: '다른'),
+          (checked: true, text: '둘'),
+        ]),
+        isFalse,
+      );
+      // links and marks around the first word still match
+      const linked = '- [ ] [**링크**](https://x) 뒤';
+      expect(
+        TaskMarks.matches(linked, TaskMarks.scan(linked), [
+          (checked: false, text: '링크 뒤'),
+        ]),
+        isTrue,
+      );
+    });
+
     test('a count mismatch makes that block display-only', () {
       // '[ ]' with no text after it is not a task box for the parser.
       final doc = parseMarkdown('- [ ] a\n\n- [ ]\n- [x] b\n\n- [ ] c');
       expect(doc.taskOffsets.whereType<int>().length, doc.taskCount);
     });
+  });
+
+  group('unclosed math (review A6)', () {
+    test(
+      'a \$\$ line with no closer is text; the rest of the document stays',
+      () {
+        const src = 'costs\n\$\$5 and more\n\npara two\n\n# H';
+        final nodes = _nodes(src);
+        expect(nodes.whereType<MdMathBlock>(), isEmpty);
+        expect(nodes.whereType<MdHeading>(), hasLength(1));
+        final text = parseMarkdown(src).blocks
+            .map((b) => b.plainText)
+            .join('|');
+        expect(text, contains('para two'));
+        expect(text, contains(r'$$5 and more'));
+      },
+    );
+
+    test('an unclosed \$\$ or \\[ at the start of a block is a paragraph', () {
+      expect(_nodes('\$\$x\n\ny').whereType<MdMathBlock>(), isEmpty);
+      expect(_nodes('\\[x\n\ny').whereType<MdMathBlock>(), isEmpty);
+      expect(_nodes('\$\$\nx\n\$\$').single, isA<MdMathBlock>());
+      expect(_nodes('a\n\$\$\nx\n\$\$').whereType<MdMathBlock>(), hasLength(1));
+    });
+  });
+
+  group('long runs without spaces (review A5)', () {
+    test('a 500,000-character line parses in well under a second', () {
+      const b64 =
+          'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+      final cases = {
+        'x': 'x' * 500000,
+        'base64': List.generate(200000, (i) => b64[(i * 7919) % 64]).join(),
+        'dashes': List.generate(100000, (i) => 'ab-_.'[(i * 31) % 5]).join(),
+      };
+      for (final e in cases.entries) {
+        final sw = Stopwatch()..start();
+        final doc = parseMarkdown('앞 문장\n\n${e.value}\n\n뒤 문장');
+        sw.stop();
+        expect(doc.blocks, hasLength(3), reason: e.key);
+        expect(sw.elapsedMilliseconds, lessThan(2000), reason: e.key);
+      }
+    });
+
+    test(
+      'links, e-mail addresses and emphasis still work around long runs',
+      () {
+        final longUrl = 'https://example.com/${'a' * 400}';
+        expect(parseMarkdown(longUrl).linkCount, 1);
+        expect(parseMarkdown('www.${'b' * 400}.com').linkCount, 1);
+        expect(parseMarkdown('${'c' * 400}@example.com').linkCount, 1);
+        final inl = _inl('**굵게** ${'d' * 300} *기울임*');
+        expect(
+          inl.whereType<MdText>().map((t) => t.text).join(),
+          contains('d' * 300),
+        );
+      },
+    );
   });
 
   test('async parse gives the same document for big texts', () async {

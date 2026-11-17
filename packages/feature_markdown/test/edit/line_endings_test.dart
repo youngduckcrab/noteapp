@@ -54,4 +54,21 @@ void main() {
       'a\nb',
     );
   });
+
+  test('lone CR (classic Mac) lines: shown as lines, written back with CR', () {
+    const raw = '# 제목\r\r- [ ] 할 일\r끝';
+    final codec = LineEndingCodec.of(raw);
+    expect(codec.cr, isTrue);
+    expect(codec.crlf, isFalse);
+    final text = codec.decode(raw);
+    expect(text, '# 제목\n\n- [ ] 할 일\n끝');
+    expect(codec.encode(text), raw);
+    // a task toggle changes exactly one byte
+    expect(
+      codec.encode(text.replaceFirst('[ ]', '[x]')),
+      raw.replaceFirst('[ ]', '[x]'),
+    );
+    // a few CRs inside LF lines are not line endings
+    expect(LineEndingCodec.of('a\nb\rc\nd').cr, isFalse);
+  });
 }

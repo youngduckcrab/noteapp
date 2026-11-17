@@ -55,14 +55,29 @@ final class ParenMathSyntax extends md.InlineSyntax {
   }
 }
 
-/// `$$` … `$$` (also on one line) and `\[` … `\]` as a block.
+/// `$$` … `$$` (also on one line) and `\[` … `\]` as a block. Only when it is closed:
+/// like pandoc, a `$$` line with no closing `$$` after it is ordinary text (otherwise the
+/// rest of the document would vanish into one math error — review A6).
 final class MathBlockSyntax extends md.BlockSyntax {
   const MathBlockSyntax();
 
   static final RegExp _open = RegExp(r'^ {0,3}(\$\$|\\\[)');
+  static final Expando<_Closers> _closers = Expando('math closers');
 
   @override
   RegExp get pattern => _open;
+
+  @override
+  bool canParse(md.BlockParser parser) {
+    final first = parser.current.content;
+    final m = _open.firstMatch(first);
+    if (m == null) return false;
+    final close = m[1] == r'$$' ? r'$$' : r'\]';
+    if (first.substring(m.end).contains(close)) return true;
+    final c = _closers[parser] ??= _Closers(parser.lines);
+    final at = c.index[parser.current] ?? -1;
+    return (close == r'$$' ? c.lastDollar : c.lastBracket) > at;
+  }
 
   @override
   md.Node? parse(md.BlockParser parser) {
@@ -91,6 +106,39 @@ final class MathBlockSyntax extends md.BlockSyntax {
       lines.add(line);
     }
     return md.Element.text(MdTags.blockMath, lines.join('\n').trim());
+  }
+}
+
+/// Where the closers are in one block parser's lines (computed once per parser, so a
+/// block of many `$$` lines stays linear).
+final class _Closers {
+  _Closers(List<md.Line> lines) {
+    for (var i = 0; i < lines.length; i++) {
+      index[lines[i]] = i;
+      if (lines[i].content.contains(r'$$')) lastDollar = i;
+      if (lines[i].content.contains(r'\]')) lastBracket = i;
+    }
+  }
+
+  final Map<md.Line, int> index = Map.identity();
+  int lastDollar = -1;
+  int lastBracket = -1;
+}
+
+/// A long run of word characters without spaces (a pasted hash, base64, a minified line)
+/// as plain text in one step. Without it two syntaxes of the markdown package scan the
+/// rest of the run at every position of it — quadratic: the word syntax
+/// (`[A-Za-z0-9]+(?=\s)`) and the GFM e-mail autolink (`[-_.+a-z0-9]+@…`). A
+/// 16,000-character run took 7.6 s, a 500,000-character one did not finish (review A5).
+/// It is tried right after the GFM autolink syntax, so URLs and e-mail addresses are still
+/// links; inside such a run (256+ characters, no space) emphasis is not looked for.
+final class LongRunSyntax extends md.InlineSyntax {
+  LongRunSyntax() : super(r'[-_.+/=A-Za-z0-9]{256,}');
+
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    parser.addNode(md.Text(match[0]!));
+    return true;
   }
 }
 
@@ -131,6 +179,10 @@ md.ExtensionSet markdownExtensions() => md.ExtensionSet(
     ParenMathSyntax(),
     TaggedInlineHtmlSyntax(),
     for (final s in md.ExtensionSet.gitHubFlavored.inlineSyntaxes)
-      if (s is! md.InlineHtmlSyntax) s,
+      if (s is md.AutolinkExtensionSyntax) ...[
+        s,
+        LongRunSyntax(),
+      ] else if (s is! md.InlineHtmlSyntax)
+        s,
   ],
 );

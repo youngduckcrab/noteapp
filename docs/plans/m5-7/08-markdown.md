@@ -1,6 +1,6 @@
 # 08 · MARKDOWN — MD 문서 v1 (선택안 ①: 파일 그대로 앱 안에서 보기 · 고치기)
 
-> 상태: **기반 구현됨 · 검토 반영** · 작성 2026-11-17 · 영역 ID **MD** · 바탕 HEAD `c100b05`(브랜치 `claude/note-app-planning-bk29xb`), 설계 `47e2fc3`, 기반 커밋은 이 문서와 같은 커밋 · 계약 행: 00-overview 7.9 **v2.17-md C217M-01~C217M-17**(이 문서 14절과 같음). 이 문서와 00-overview 7장이 다르면 7장이 우선한다. 데이터 · UX 검토 37건의 판정은 19절.
+> 상태: **기반 구현됨 · 검토 반영 · 트랙 B(화면) 구현됨 · 트랙 B 코드 검토 반영(8.12 · 19.1)** · 작성 2026-11-17 · 영역 ID **MD** · 바탕 HEAD `c100b05`(브랜치 `claude/note-app-planning-bk29xb`), 설계 `47e2fc3`, 기반 커밋은 이 문서와 같은 커밋 · 계약 행: 00-overview 7.9 **v2.17-md C217M-01~C217M-17**(이 문서 14절과 같음). 이 문서와 00-overview 7장이 다르면 7장이 우선한다. 데이터 · UX 검토 37건의 판정은 19절.
 >
 > 오너 요청: 'PDF뿐만 아니라 md파일도 읽을 수 있으면 좋겠다' → 오너 선택: **md 파일 자체를 앱 안에서 쓴다(필기 노트로 바꾸지 않음)**, 범위 **①**. ②(블록마다 펜 필기)와 ③(원본 파일과 살아 있는 연결)은 뒤 라운드다.
 >
@@ -341,7 +341,7 @@ packages/feature_markdown/lib/
 - 블록 나누기(4.7) 뒤 블록마다 `markdown.Document(extensionSet: ExtensionSet.gitHubFlavored, encodeHtml: false, blockSyntaxes: [MathBlockSyntax()], inlineSyntaxes: [MathInlineSyntax()])`. `gitHubWeb`은 쓰지 않는다(이모지 표가 큼). 각주 정의는 블록을 넘어가므로 문서 전체에서 한 번 모아 넘긴다.
 - 수식: 인라인 `$x$` — 여는 `$` 뒤와 닫는 `$` 앞이 공백 아님, 닫는 `$` 뒤가 숫자 아님(pandoc — '$5 and $6' 보호), `\$`는 글자. `\(…\)`도 인라인. 블록 = `$$` 줄 쌍, **한 줄 `$$ … $$`**, `\[…\]`, ` ```math ` 펜스(검토 U20). 코드 안의 `$`는 코드.
 - **YAML 머리말**(검토 U10): 문서 첫 줄 `---` … `---`/`...`는 접힌 작은 '정보' 상자(기본 접힘, 키 `md.frontMatter`)로 — 가로줄 + 제목으로 잘못 보이지 않게.
-- **원시 HTML 작은 허용 목록**(검토 U10, `html_lite.dart`): `<br>` → 줄바꿈, `<img src alt>` → 8.3 이미지 규칙(원격은 안 가져옴), `<details>/<summary>` → 접는 상자, `<b> <i> <em> <strong> <code> <sub> <sup> <kbd>` → 해당 모양, `<p align>` · `<div>` · `<span>` → 안 글만. 그 밖의 태그는 떼고 안 글만. 스크립트 · 스타일 · iframe은 안 글도 버림. HTML은 실행하지 않는다.
+- **원시 HTML 작은 허용 목록**(검토 U10, `html_lite.dart`): `<br>` → 줄바꿈, `<img src alt>` → 8.3 이미지 규칙(원격은 안 가져옴), `<details>/<summary>` → 접는 상자(**v1 구현: 안 글만 — 8.12**), `<b> <i> <em> <strong> <code> <sub> <sup> <kbd>` → 해당 모양, `<p align>` · `<div>` · `<span>` → 안 글만. 그 밖의 태그는 떼고 안 글만. 스크립트 · 스타일 · iframe은 안 글도 버림. HTML은 실행하지 않는다.
 - 문서가 50 KB를 넘으면 파싱을 `compute`로(웹은 같은 스레드), 입력 중 미리보기는 200 ms 지연. 블록 나누기는 원문 범위가 같은 블록의 파싱 결과를 다시 쓴다(고친 블록만 다시 파싱).
 - 줄바꿈: GFM 기본(한 줄바꿈은 띄어쓰기). '줄바꿈 그대로 보기' 설정은 v1에 넣지 않는다(검토 U20 — 19절 거절 사유).
 
@@ -355,7 +355,7 @@ packages/feature_markdown/lib/
 | 강조 · 취소선 | w700 · italic · lineThrough |
 | 인라인 코드 | 고정폭, `accentSoft` 바탕 + **`onAccentSoft` 글자**, `radiusSmall` |
 | 펜스 코드 | `card` 바탕 + `hairline` 테두리, 고정폭, **가로 스크롤**(줄 바꿈 안 함), 언어 이름, [복사](`AppIconKind.copyText`). 문법 색칠 없음 |
-| 표 | **가로 스크롤**, 머리줄 w600 + `card` 바탕, 정렬 지킴, 칸 최소 폭. 500행 넘는 표는 행 단위로 지연 생성(8.11) |
+| 표 | **가로 스크롤**, 머리줄 w600 + `card` 바탕, 정렬 지킴, 칸 폭 48~320 px. **100행 넘는 표는 앞 100행 + [더 보기](100행씩, 키 `md.table.<i>.more`), 칸 폭은 머리줄 + 앞 40행 표본으로 한 번 재서 고정**(8.11 · 19.1 A7) |
 | 목록 | 중첩 24 px씩, 글머리 깊이마다 ● ○ ■, 번호 시작 지킴 |
 | 할 일 | 체크 상자(누를 곳 48 dp 이상 — 8.5), 끝난 항목 `textSecondary` |
 | 인용 | 왼쪽 4 px `accent` 띠 + `textSecondary` |
@@ -363,7 +363,7 @@ packages/feature_markdown/lib/
 | 수식 | 인라인 `WidgetSpan(MathPreview(fontSize = 본문 크기, color = textPrimary), alignment: middle)`, 블록은 가운데 + 가로 스크롤. `validate` 오류면 원문을 코드 모양 + `colorScheme.error` |
 | 이미지 | 원격(`http(s)://` 등): **가져오지 않음** — 점선(`outline`) 상자 + 대체 글 + 호스트 + '이미지를 불러오지 않았어요'(`AppIconKind.imageBlocked`). `data:image/(png|jpeg|gif|webp);base64`이고 풀린 크기 ≤ 2 MB면 `Image.memory` — **풀기는 블록 파싱 때 한 번, 결과를 캐시**(검토 U20). 상대 경로: '원본 파일의 이미지는 가져오지 않았어요' |
 | 링크 | **`textPrimary` 글자 + `accent` 밑줄 2 px**(검토 U14 — `accent`는 글자 대비 보장이 없음). 누르면 8.6 |
-| 검색 강조 | `accentSoft` 채움 + `accent` 1.5 px 테두리, 맞은 **낱말만**(블록 전체 아님 — 검토 U14 · U17) |
+| 검색 강조 | `accentSoft` 채움 + `accent` 1.5 px 테두리, 맞은 **낱말만**(블록 전체 아님 — 검토 U14 · U17). **v1 구현은 맞은 낱말이 든 블록 전체를 3초 강조**(8.12) |
 | 각주 | 위첨자 번호, 문서 끝 각주 목록 |
 
 - 편집기 스타일(`EditorStyleScope`)과 밝게/어둡게를 따른다. 좌우 여백 폰 16 / 태블릿 32, 시스템 글자 배율을 따름. 보기 모드는 `SelectionArea`(터치는 길게 눌러 고르기).
@@ -375,15 +375,15 @@ packages/feature_markdown/lib/
 - **좁을 때(< 600 — 폰, 검토 U12)**: 모드 단추는 아이콘만(툴팁), 저장 상태는 아이콘(툴팁 · 의미 이름), [↶][↷]는 기호 줄로 옮김. 390 px · 글자 배율 1.3에서 넘침 없음(골든).
 - [⋯]: '.md로 내보내기'(자리가 있을 때) · '이름 바꾸기' · '정보'(글자 수 · 바이트 · 수정 시각).
 - 나란히 모드에서 모드 단추 = '나란히 끄기'(편집으로 돌아감)(검토 U22).
-- **뒤로 순서**(검토 U22, 편집기 `editor_screen.dart`의 순서와 같음): ① 열린 시트 · 메뉴 닫기 ② 편집/나란히 모드면 보기로(저장 비우기) ③ 화면 닫기. 저장이 실패한 채면 ③ 대신 8.7의 떠나기 대화.
+- **뒤로 순서**(검토 U22, 편집기 `editor_screen.dart`의 순서와 같음): ① 열린 시트 · 메뉴 닫기 ② 편집/나란히 모드면 보기로(저장 비우기) ③ 화면 닫기. 저장이 실패한 채면 ③ 대신 8.7의 떠나기 대화. **위 막대 [←]도 시스템 뒤로와 같은 순서**다(19.1 B8).
 - 새 문서(`initialEdit`)는 편집으로, 그 밖은 보기로 연다.
 - 읽기 전용(`MarkdownDoc.readOnlyReason`: 휴지통 · 새 버전 · 본문 없음, 그리고 8.7의 편집 상한)이면 편집 단추가 꺼지고 이유 띠(13절 키).
 
 ### 8.5 할 일 체크 상자 토글
 
-- 위치 찾기: `TaskMarks.scan`이 **각 블록의 원문 범위 안에서**(4.7) 줄을 훑는다(펜스 · 들여쓴 코드 · HTML 블록 건너뜀, `>` 접두 허용, `^\s*(?:[-*+]|\d+[.)])\s+\[( |x|X)\]`). 블록마다 렌더된 체크 상자 수 == 훑은 수일 때만 그 블록의 토글을 켠다(어긋나면 그 블록만 보이기만, 개발자 로그 한 줄).
+- 위치 찾기: `TaskMarks.scan`이 **각 블록의 원문 범위 안에서**(4.7) 줄을 훑는다(펜스 · 들여쓴 코드(목록 항목 안의 들여쓴 코드도) · HTML 블록 건너뜀, `>` 접두 허용(목록 항목 안에서는 들여쓴 `>`도), `^\s*(?:[-*+]|\d+[.)])\s+\[( |x|X)\]`). 블록마다 **훑은 상자가 파서의 상자와 같을 때만** 그 블록의 토글을 켠다: 수가 같고, 상자마다 `[` 표시 `]`가 있고, 체크 상태가 파서와 같고, 상자 뒤 글의 첫 낱말이 그 항목 글의 첫 낱말과 같다(`TaskMarks.matches` — 수만 같으면 다른 줄(코드 안)을 고칠 수 있었음, 19.1 A4). 어긋나면 그 블록만 보이기만, 개발자 로그 한 줄. `toggleTaskAt`도 `[` 표시 `]`를 다시 확인한다.
 - **모든 바뀜은 컨트롤러의 풀린 버퍼를 거친다**(검토 U6): 토글 = 버퍼에서 그 글자를 `' '`↔`'x'`로 바꾸는 편집 하나 → 되돌리기 기록에 들어감 → 자동 저장 길(바로 비우기). 나란히 모드에서 미리보기의 상자를 눌러도 같은 편집이라 입력 중인 글과 부딪히지 않는다. 보기는 `watch`가 아니라 **버퍼**를 그린다(편집→보기 때 옛 글이 번쩍이지 않음).
-- 실수 막기(검토 U7): 토글 뒤 4초 '할 일을 바꿨어요 [되돌리기]'(키 `md.taskUndo`). 누를 곳 48 dp 이상. 손바닥 거부 설정이 켜져 있으면 `PointerDeviceKind.unknown`은 무시.
+- 실수 막기(검토 U7): 토글 뒤 4초 '할 일을 바꿨어요 [되돌리기]'(키 `md.taskUndo`). [되돌리기]는 **버퍼가 토글 직후 그대로일 때만** 상자를 되돌린다(그 사이 입력 · 다른 기기 글 · 다른 토글로 위치가 움직였으면 아무것도 안 함 — 19.1 A3). 누를 곳 48 dp 이상. 손바닥 거부 설정이 켜져 있으면 `PointerDeviceKind.unknown`은 무시(**v1 구현 안 됨 — 8.12**).
 
 ### 8.6 링크
 
@@ -393,14 +393,14 @@ packages/feature_markdown/lib/
 
 - 편집기: 여러 줄 `TextField`(`expands: true`, `maxLines: null` — 스스로 스크롤해 커서가 키보드 위에 남음), 고정폭, `autocorrect: false`, `enableSuggestions: false`, 같은 읽기 폭, 줄 높이 1.5.
 - **기호 줄**(검토 U11, 키 `md.accessory`): 편집 중 키보드 위에 `#` `-` `[ ]` `*` `` ` `` `$` `|` `>` [들여쓰기][내어쓰기](`indent`/`outdent`) (+ 좁을 때 [↶][↷]). 하드웨어 키보드 Tab / Shift+Tab = 지금 목록 줄 들여쓰기 / 내어쓰기(포커스가 밖으로 나가지 않음).
-- **편집 상한**(검토 U3): 풀린 글이 **150,000 UTF-16 단위**를 넘으면 편집기를 열지 않고 보기 전용 + 띠 `md.banner.tooLargeToEdit`('이 문서는 너무 길어서 앱에서 고칠 수 없어요 — 보기만 돼요'). 값은 B-13 측정(100 KB · 400 KB 문서의 글자당 프레임 시간)으로 정하고 바꿀 수 있다 — 저장 상한(400 KB)과 따로.
+- **편집 상한**(검토 U3): 풀린 글이 **150,000 UTF-16 단위**를 넘으면 편집기를 열지 않고 보기 전용 + 띠 `md.banner.tooLargeToEdit`('이 문서는 너무 길어서 앱에서 고칠 수 없어요 — 보기만 돼요'). 값은 B-13 측정(100 KB · 400 KB 문서의 글자당 프레임 시간)으로 정하고 바꿀 수 있다 — 저장 상한(400 KB)과 따로. **측정(VM 디버그, `perf_test` 'one keystroke…')**: 글자 하나에 100 KB 중앙값 약 520 ms, 149,900 단위 약 750 ms(대부분 Flutter `TextField` 배치). 400 KB(저장 상한) 문서는 보기 전용으로 열리고 첫 그림 약 120 ms. 릴리스 · 실기기 수치가 없어 상한은 150,000 그대로 두고 **오너 태블릿 체크(15.4)에서 100 KB 입력이 끊기면 내린다**.
 - **자동 저장**: 마지막 입력 뒤 **700 ms**, 계속 입력 중이면 최대 **5 s**마다 한 번. 저장하는 글 = `value.text`(조합 중인 글자 포함 — 조합 범위는 저장과 상관없음). **IME 조합 중에는 지연 저장만 최대 1 s 미룬다**(검토 U2 — 한국어 키보드는 마지막 글자를 조합 상태로 오래 둠). **즉시 비우기**(보기로 바꿈, 뒤로, dispose, `AppLifecycleListener` onHide · onPause · onDetach)는 조합을 무시하고 바로 저장한 뒤 `noteStore.flush()`.
-- 저장 = `saveText(id, 인코딩한 버퍼, baseVersion: 컨트롤러의 base)`. 결과의 `textVersion`이 다음 base. `savedWithConflictCopy`면 띠 `md.banner.conflictCopy`('다른 기기에서 바뀐 글을 사본으로 남겼어요 [사본 열기]').
-- **들어오는 변경**(`watch`, 검토 U5): ① `textVersion`이 마지막 내 저장의 판본과 같으면 무시(내 메아리), ② `LineEndingCodec.decode(받은 글)` == 버퍼면 base만 갱신, ③ 버퍼가 깨끗하면 받은 글로 바꾸되 **커서 위치 · 스크롤을 블록 단위로 지키고 되돌리기 기록은 '외부 변경' 한 칸으로**, ④ 버퍼가 dirty면 반영하지 않음(다음 저장에서 L1이 사본으로 지킴).
-- **저장 실패**(쓰기 큐 오류 · `MarkdownTooLargeException`): 글은 편집기에 그대로, 띠 + [다시 시도]. 성공 전에는 '저장됨'을 보이지 않음. **떠나기**(검토 U1 · D11): 뒤로(`PopScope(canPop: false)`)에서 비우기가 실패하면 대화 `md.leave` — [머무르기] / [복사하고 나가기](버퍼를 클립보드에) / [버리고 나가기]. 비우기를 300 ms 넘게 기다리면 '저장 중…' 표시(편집기 `_SavingNotice`와 같음). 앱 일시정지 · 분리 때는 대화를 띄울 수 없으므로 저장을 시도하고, 실패하면 버퍼를 기기 로컬 설정 `markdown.unsaved`(`SettingKey.jsonMap`, `{noteId, text, at}` — 마지막 하나만, 400 KB 이하; 설정 값 크기 제한에 걸리면 B가 보고)에 넣어 다음에 그 문서를 열 때 '저장하지 못한 글이 있어요 [되살리기][버리기]'.
-- **되돌리기 · 다시 하기**(검토 U4): Flutter `UndoHistoryController`는 기록 수 상한이 없다 [확인 undo_history.dart 399~437줄] → 직접 `BoundedUndoHistory`(최대 200칸 **그리고** 모든 칸의 글자 합 ≤ 4,000,000 UTF-16 단위, 넘으면 오래된 것부터 버림, 500 ms 묶기). Ctrl+Z / Ctrl+Shift+Z와 [↶][↷]. 기록은 화면을 떠나면 사라짐.
+- 저장 = `saveText(id, 인코딩한 버퍼, baseVersion: 컨트롤러의 base)`. 결과의 `textVersion`이 다음 base. `savedWithConflictCopy`면 띠 `md.banner.conflictCopy`('다른 기기에서 바뀐 글을 사본으로 남겼어요 [사본 열기][닫기]'). [사본 열기](키 `md.banner.conflictCopy.open`)는 앱이 `MarkdownScreen.onOpenMarkdown`을 줄 때만 보이고, 저장 · 비우기 뒤 그 사본 id로 부른다(19.1 B4).
+- **들어오는 변경**(`watch`, 검토 U5): ① `textVersion`이 마지막 내 저장의 판본과 같으면 무시(내 메아리), ② `LineEndingCodec.decode(받은 글)` == 버퍼면 base만 갱신, ③ 버퍼가 깨끗하면 받은 글로 바꾸되 **커서 위치 · 스크롤을 지키고**(커서는 바뀐 곳 앞이면 그대로, 뒤면 길이 차만큼 옮김 — `mapOffsetThroughChange`; 보기는 맨 위 블록을 키로 찾아 같은 높이에 둠) **되돌리기 기록은 비운다**(계획의 '외부 변경 한 칸'은 그 칸을 되돌리면 다른 기기 글을 사본 없이 덮으므로 바꿈 — 19.1 A2), ④ 버퍼가 dirty면 반영하지 않음(다음 저장에서 L1이 사본으로 지킴).
+- **저장 실패**(쓰기 큐 오류 · `MarkdownTooLargeException`): 글은 편집기에 그대로, 띠 + [다시 시도]. 성공 전에는 '저장됨'을 보이지 않음. **떠나기**(검토 U1 · D11): 뒤로(`PopScope(canPop: false)`)에서 비우기가 실패하면 대화 `md.leave` — [머무르기] / [복사하고 나가기](버퍼를 클립보드에) / [버리고 나가기]. 비우기를 300 ms 넘게 기다리면 '저장 중…' 표시(편집기 `_SavingNotice`와 같음). 앱 일시정지 · 분리 때는 대화를 띄울 수 없으므로 저장을 시도하고, 실패하면 버퍼를 기기 로컬 설정 `markdown.unsaved`(`SettingKey.jsonMap`, **`{<noteId>: {text, base, at}}` — 문서마다 한 칸, 최대 8문서(오래된 것부터 버림), `base` = 그 글이 바탕으로 한 `textVersion`**)에 넣어 다음에 그 문서를 열 때 '저장하지 못한 글이 있어요 [되살리기][버리기]'. 화면이 [←]/뒤로 말고 다른 길로 닫혀(경로 교체 등) dispose의 마지막 저장이 실패해도 같은 칸에 넣는다(19.1 A8). **그 문서의 저장이 나중에 성공하면 이 화면이 넣은 칸은 지운다**(옛 글이 새 글을 덮지 않게 — 19.1 A1). [되살리기]는 칸의 `base`로 저장한다(`restoreText`): 그 사이 다른 기기 글이 들어왔으면 L1이 그 글을 충돌 사본으로 남긴다(19.1 B1). [버리고 나가기]는 정말 버린다(`discard` — dispose의 마지막 저장도 안 함); [복사하고 나가기]는 복사한 뒤에도 dispose에서 저장을 시도하고, 실패하면 칸에 넣는다.
+- **되돌리기 · 다시 하기**(검토 U4): Flutter `UndoHistoryController`는 기록 수 상한이 없다 [확인 undo_history.dart 399~437줄] → 직접 `BoundedUndoHistory`(최대 200칸 **그리고** 모든 칸의 글자 합 ≤ 4,000,000 UTF-16 단위, 넘으면 오래된 것부터 버림, 500 ms 묶기 — 타이머라 시험의 가짜 시간과 맞음). Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y와 [↶][↷]는 이 기록으로 간다(`UndoTextIntent` · `RedoTextIntent`를 편집기 위에서 덮음). 할 일 토글 · 되살리기는 한 칸씩. 기록은 화면을 떠나면 사라짐. **필드 자체의 기록**: `TextField` 안의 `UndoHistory`는 끌 수 없고 상한 없이 쌓이므로, 컨트롤러가 그 크기를 어림해(500 ms마다 글 길이) 4,000,000 단위를 넘으면 같은 값의 새 `TextEditingController`로 바꿔 그 기록을 비운다(`renewField` — 조합 중이면 미룸; `UndoHistory`는 값 알림이 바뀌면 기록을 비움 [확인 undo_history.dart didUpdateWidget]).
 - **보기 ↔ 편집 위치**(검토 U9): 보기에서 맨 위에 보이는 블록의 원문 시작 → 편집기의 커서 · 스크롤을 그 줄로, 편집에서 커서가 있는 블록 → 보기에서 그 블록을 맨 위로.
-- 줄 끝 · BOM: 4.6 코덱. 위치 계산은 모두 풀린 버퍼 기준.
+- 줄 끝 · BOM: 4.6 코덱. 위치 계산은 모두 풀린 버퍼 기준. **외톨이 CR(옛 Mac) 줄 끝이 가장 많은 파일**은 LF 줄로 보여 주고 CR로 다시 쓴다(19.1 A9). 섞인 줄 끝은 첫 편집에서 많은 쪽으로 맞춘다(18 R2 그대로).
 
 ### 8.8 검색 이동
 
@@ -412,12 +412,27 @@ packages/feature_markdown/lib/
 
 ### 8.10 펜(스타일러스)으로 볼 때 (검토 U16)
 
-- 보기에서 펜 끌기 = 스크롤(글 고르기는 길게 누르기). MD 문서에서 처음 펜이 닿으면 한 번만 안내 'MD 문서에는 아직 펜으로 쓸 수 없어요 — 편집에서 글로 고칠 수 있어요'(기기 로컬 설정 `markdown.penHintShown`).
+- 보기에서 펜 끌기 = 스크롤(글 고르기는 길게 누르기). MD 문서에서 처음 펜이 닿으면 한 번만 안내 'MD 문서에는 아직 펜으로 쓸 수 없어요 — 편집에서 글로 고칠 수 있어요'(기기 로컬 설정 `markdown.penHintShown`) — **v1 구현 안 됨(8.12)**.
 - 편집기에서 Android 펜 손글씨 → 글자 입력(Scribe/Samsung)이 `autocorrect: false` TextField에서 되는지 실기기 체크리스트에 넣는다.
 
 ### 8.11 긴 문서 (검토 U20 · U3)
 
-- 블록 `ListView.builder`. 최상위 목록은 **항목 단위로**, 표는 **행 묶음(50행) 단위로** 빌더 자식을 쪼갠다 — 2,000항목 목록 · 500행 표가 한 번에 만들어지지 않게. 시험: 2,000항목 목록에서 첫 그림 시간(perf).
+- 블록 `ListView.builder`. 최상위 목록은 **항목 단위로**(40항목 넘으면 20항목씩) 빌더 자식을 쪼갠다. 표는 행 묶음으로 쪼개면 묶음마다 가로 스크롤이 따로 놀므로 **앞 100행 + [더 보기]**로 바꾸고 칸 폭을 표본으로 고정한다(`IntrinsicColumnWidth`가 칸마다 두 번 재서 500행 표 첫 빌드 4.4 s — 19.1 A7). 시험: 2,000항목 목록에서 첫 그림 시간(perf), 250행 표 [더 보기].
+- **띄어쓰기 없는 긴 줄**(19.1 A5): markdown 패키지의 낱말 문법 `[A-Za-z0-9]+(?=\s)`와 GFM 메일 자동 링크 `[-_.+a-z0-9]+@`가 줄의 위치마다 나머지를 다시 훑어 제곱 시간(16,000자 7.6 s, 500,000자는 끝나지 않음). `LongRunSyntax`(`[-_.+/=A-Za-z0-9]{256,}`를 글자 그대로 한 번에)를 GFM 자동 링크 바로 뒤에 둔다 — 주소 · 메일은 그대로 링크. 500,000자 줄 약 0.1 s(시험).
+- **닫히지 않은 `$$`**(19.1 A6): pandoc처럼 닫는 `$$`(`\]`)가 뒤에 없으면 수식 블록이 아니라 글(블록 나누기 · `MathBlockSyntax.canParse` 둘 다). 문서 끝까지 사라지지 않음.
+
+### 8.12 트랙 B 구현에서 계획과 다른 점 (2026-11-17, 코드 검토 뒤)
+
+| 계획 | 구현 | 이유 · 뒤 일 |
+|---|---|---|
+| 검색 강조는 맞은 낱말만(8.3 · 8.8) | 맞은 낱말이 든 **블록 전체**를 3초 강조 | 렌더러가 블록마다 `RichText`라 낱말 범위를 칸에 옮기는 일이 커서 뒤 라운드. 이동 · 블록은 원문 기준으로 맞음 |
+| `<details>/<summary>` 접는 상자(8.2) | 태그를 떼고 안 글만(다른 모르는 태그와 같음) | v1 오너 목록에 없음. 접는 상자는 머리말 상자를 다시 써서 뒤에 더함 |
+| 처음 펜 안내 `markdown.penHintShown`(8.10) | 없음 | 보기의 펜 끌기는 스크롤로 동작함. 안내 문구는 ②(펜 필기) 라운드와 함께 |
+| 할 일 상자의 손바닥 거부(8.5) | 없음(48 dp 상자 + [되돌리기]만) | 편집기의 손바닥 거부 설정을 이 패키지에서 읽을 길이 아직 없음 — 통합(A)에서 자리를 정하면 더함 |
+| 들어온 변경 = 되돌리기 한 칸(8.7 ③) | 들어온 변경에서 기록을 비움 | 19.1 A2 |
+| 표 50행 묶음 지연 생성(8.11) | 앞 100행 + [더 보기], 표본 칸 폭 | 8.11 |
+| `markdown.unsaved` = 마지막 하나(8.7) | 문서마다 한 칸 + `base` | 19.1 A1 · B1 |
+| 400 KB 글자당 프레임 측정(B-13) | 400 KB는 편집 상한을 넘어 보기 전용 — 첫 그림만 잼. 글자당은 100 KB · 149,900 단위 | 8.7 |
 
 ---
 
@@ -527,7 +542,8 @@ abstract final class FakeMarkdownHooks {
 // feature_markdown.dart (deferred 대상)
 class MarkdownScreen extends ConsumerStatefulWidget {
   const MarkdownScreen({super.key, required NoteId noteId, String? initialQuery,
-    bool initialEdit = false, required VoidCallback onClose, VoidCallback? onOpenAsNote});
+    bool initialEdit = false, required VoidCallback onClose, VoidCallback? onOpenAsNote,
+    ValueChanged<NoteId>? onOpenMarkdown}); // 트랙 B가 더함: 충돌 사본 [사본 열기], null → 단추 숨김
 }
 abstract final class MarkdownKeys { /* 13절 */ }
 
@@ -554,11 +570,11 @@ final markdownOpenLinkProvider = Provider<MarkdownOpenLinkAction?>((ref) => null
 
 ## 13. 키 이름
 
-화면(`MarkdownKeys`, 기반에서 고정 — B는 더하기만): `md.screen` · `md.back` · `md.title` · `md.mode` · `md.split` · `md.undo` · `md.redo` · `md.saveState` · `md.more` · `md.menu.export` · `md.menu.rename` · `md.menu.info` · `md.view` · `md.editor` · `md.accessory` · `md.highlight` · `md.notMarkdown` · `md.notMarkdown.open` · `md.banner.trashed` · `md.banner.newerApp` · `md.banner.receiving` · `md.banner.tooLarge` · `md.banner.tooLargeToEdit` · `md.banner.saveFailed` · `md.banner.retry` · `md.banner.conflictCopy` · `md.leave` · `md.leave.stay` · `md.leave.copy` · `md.leave.discard` · `md.linkSheet` · `md.linkSheet.copy` · `md.linkSheet.open` · `md.linkSheet.cancel` · `md.taskUndo` · `md.block.<i>` · `md.task.<i>` · `md.link.<i>` · `md.code.<i>` · `md.code.<i>.copy` · `md.table.<i>` · `md.math.<i>` · `md.image.<i>`. B가 더할 것: `md.frontMatter`, 필요한 만큼.
+화면(`MarkdownKeys`, 기반에서 고정 — B는 더하기만): `md.screen` · `md.back` · `md.title` · `md.mode` · `md.split` · `md.undo` · `md.redo` · `md.saveState` · `md.more` · `md.menu.export` · `md.menu.rename` · `md.menu.info` · `md.view` · `md.editor` · `md.accessory` · `md.highlight` · `md.notMarkdown` · `md.notMarkdown.open` · `md.banner.trashed` · `md.banner.newerApp` · `md.banner.receiving` · `md.banner.tooLarge` · `md.banner.tooLargeToEdit` · `md.banner.saveFailed` · `md.banner.retry` · `md.banner.conflictCopy` · `md.leave` · `md.leave.stay` · `md.leave.copy` · `md.leave.discard` · `md.linkSheet` · `md.linkSheet.copy` · `md.linkSheet.open` · `md.linkSheet.cancel` · `md.taskUndo` · `md.block.<i>` · `md.task.<i>` · `md.link.<i>` · `md.code.<i>` · `md.code.<i>.copy` · `md.table.<i>` · `md.math.<i>` · `md.image.<i>`. B가 더함: `md.frontMatter` · `md.split.preview` · `md.banner.unsaved` · `md.banner.unsaved.restore` · `md.banner.unsaved.discard` · `md.banner.dismiss` · `md.banner.conflictCopy.open` · `md.rename.field` · `md.rename.ok` · `md.accessory.<기호>` · `md.accessory.fade.start|end` · `md.table.<i>.more`.
 
 라이브러리(트랙 A): `library.new.markdown` · `library.new.importMarkdown` · `library.tile.mdBadge` · `library.tile.mdPreview` · `library.menu.exportMarkdown` · `library.hit.markdown.<noteId>`.
 
-설정 키(모두 기기 로컬): `markdown.splitView`(bool, 기본 false) · `markdown.penHintShown`(bool) · `markdown.unsaved`(jsonMap). CORE kv(로컬): `md.conflictCopy.<noteId>`(5.3).
+설정 키(모두 기기 로컬): `markdown.splitView`(bool, 기본 false) · `markdown.penHintShown`(bool — v1 쓰지 않음) · `markdown.unsaved`(jsonMap, `{<noteId>: {text, base, at}}` — 8.7). CORE kv(로컬): `md.conflictCopy.<noteId>`(5.3).
 
 ---
 
@@ -583,7 +599,7 @@ final markdownOpenLinkProvider = Provider<MarkdownOpenLinkAction?>((ref) => null
 | C217M-11 | 7.2.11 LIBRARY | `LibraryScreen.onOpenMarkdown(id, {query, edit})`, '새로 만들기'에 '새 MD 문서' · 'MD 가져오기'(자리 `libraryMarkdownImportActionProvider`), MD 카드(`inkSwatch` 글 페이지 + 'MD' 표, 미리보기 키에 updatedAt), MD 메뉴 '.md로 내보내기'(자리 `libraryMarkdownExportActionProvider`) · PDF 내보내기 · 표지 바꾸기 뺌, 검색 MD 줄, 노트 고르기에서 뺌 | 오너 요청 · 검토 U15 | A |
 | C217M-12 | 7.2.12 PDF 파일 도우미 | pdf_io 공개 `TextFileSource`/`FilePickerTextSource`/`PickedTextFile`(md · markdown · txt, 여러 개), `DocumentFileOutput`/`createPlatformDocumentOutput`(바이트 + 이름 + MIME). `PdfOutputSink` 표면 그대로 | R16 | A |
 | C217M-13 | 4.5.5 INFRA 경로 | `/md/:noteId?q=&edit=1`, `MarkdownRouteArgs`, `AppNavigator.openMarkdown`/`closeMarkdown`, 편집기 스타일, 라이브러리는 처음부터 `/md/`로(redirect는 주소 직접용 대비책), 화면은 deferred import(한 번 부른 뒤 동기) | D7 · D9 · 검토 U18 · U19 | A |
-| C217M-14 | 화면 | `MarkdownScreen(noteId, initialQuery, initialEdit, onClose, onOpenAsNote)`, 보기 ↔ 편집 단추 하나, 모든 바뀜은 버퍼 하나를 거쳐 `saveText(baseVersion)`, 자동 저장(700 ms · 최대 5 s · 조합은 1 s만 미룸 · 떠날 때 · 앱 숨김 때 비움), 실패하면 떠나기 대화, 상한 있는 되돌리기, 편집 상한(150,000 단위 — 넘으면 보기 전용), 할 일 토글(블록별 수가 맞을 때만, 되돌리기 알림), 링크는 묻고 열기/복사, 원격 이미지 안 가져옴, 수식 MathPreview, 머리말 · HTML 허용 목록, 넓은 화면 나란히 | 오너 요청 · 검토 U1~U12 · U16 · U20 | B |
+| C217M-14 | 화면 | `MarkdownScreen(noteId, initialQuery, initialEdit, onClose, onOpenAsNote, onOpenMarkdown)`(마지막은 트랙 B가 더함 — 충돌 사본 [사본 열기]), 보기 ↔ 편집 단추 하나, 모든 바뀜은 버퍼 하나를 거쳐 `saveText(baseVersion)`, 자동 저장(700 ms · 최대 5 s · 조합은 1 s만 미룸 · 떠날 때 · 앱 숨김 때 비움), 실패하면 떠나기 대화, 못 저장한 글은 문서마다 `base`와 함께 기기에 두고 되살리면 그 base로 저장(L1 사본), 상한 있는 되돌리기(200칸 · 4,000,000 단위, 다른 기기 글이 들어오면 기록 비움), 편집 상한(150,000 단위 — 넘으면 보기 전용), 할 일 토글(블록별로 훑은 상자가 파서 상자와 같을 때만, 되돌리기 알림은 버퍼가 그대로일 때만), 링크는 묻고 열기/복사, 원격 이미지 안 가져옴, 수식 MathPreview, 머리말 · HTML 허용 목록, 넓은 화면 나란히. 계획과 다른 점은 08-markdown 8.12 | 오너 요청 · 검토 U1~U12 · U16 · U20 · 트랙 B 코드 검토 | B |
 | C217M-15 | 자리 | feature_markdown `slots.dart`: `MarkdownExportAction`/`markdownExportActionProvider`, `MarkdownOpenLinkAction`/`markdownOpenLinkProvider`(앱이 url_launcher로, http · https · mailto · tel만) | D8 | 기반(형, 처리됨) · A(연결) |
 | C217M-16 | 가져오기 · 내보내기 | UTF-8만(BOM 허용 · 보존), NUL 거절, `MarkdownLimits.check`, 원문 그대로 저장, 내보내기 = `utf8.encode(text)` → 가져온 그대로면 바이트 같음. 이름 = 정리한 제목 + '.md'(흔한 파일 이름이면 머리말 title → 첫 h1). 공유 MIME `text/plain`, 저장 `text/markdown` | 오너 요청 · 검토 U21 | A |
 | C217M-17 | 7.2.x UI 아이콘 | `AppIconKind` 13개 더함(12.3) — 메뉴 · 화면 글리프만 | 12.3 | 기반(처리됨) |
@@ -622,7 +638,7 @@ final markdownOpenLinkProvider = Provider<MarkdownOpenLinkAction?>((ref) => null
 
 ### 15.4 통합 (A가, 둘 병합 뒤)
 
-앱 끝까지(실제 CORE, VM): 가져오기(가짜 고르기) → 열림 → 편집 → 뒤로 → 라이브러리 미리보기 갱신 → 검색 → 맞는 곳 → 내보내기 바이트 같음 → 휴지통 → 되살리기 → 영구 삭제. Android 실기기 체크리스트 MD 항목 10개(가져오기 필터 · 한국어 IME 자동 저장 · 펜 손글씨 입력 · 100 KB 첫 그림 · 400 KB 편집 상한 띠 · 공유 대상 · 저장 · 링크 열기 · 앱 종료 뒤 글 · 다크 모드).
+앱 끝까지(실제 CORE, VM): 가져오기(가짜 고르기) → 열림 → 편집 → 뒤로 → 라이브러리 미리보기 갱신 → 검색 → 맞는 곳 → 내보내기 바이트 같음 → 휴지통 → 되살리기 → 영구 삭제. Android 실기기 체크리스트 MD 항목 11개(가져오기 필터 · 한국어 IME 자동 저장 · 펜 손글씨 입력 · 100 KB 첫 그림 · **100 KB · 150,000자 문서에서 입력이 끊기지 않는지(아니면 편집 상한을 내림 — 8.7)** · 400 KB 편집 상한 띠 · 공유 대상 · 저장 · 링크 열기 · 앱 종료 뒤 글 · 다크 모드). 트랙 A는 `MarkdownScreen.onOpenMarkdown`을 `AppNavigator.openMarkdown`에 잇는다.
 
 ---
 
@@ -641,15 +657,15 @@ final markdownOpenLinkProvider = Provider<MarkdownOpenLinkAction?>((ref) => null
 | MD-T09 | 노트가 본문보다 먼저 → `bodyPresent false` · 화면 편집 금지 · 2분 뒤 문구 · 본문 오면 열림 | A + B |
 | MD-T10 | 라이브러리: 새로 만들기 두 항목, 실행 중 꺼짐, MD 카드 · 미리보기 갱신, MD 메뉴, 골든(섞인 그리드 6장) | A |
 | MD-T11 | 경로: 카드 → `/md/<id>`(DB 안 읽음), 검색 → `?q=`, `/notes/<md id>` → `/md/<id>`, `/md/<노트 id>` → 'MD 문서가 아니에요', deferred 두 번째 열기에 빈 프레임 없음 | A |
-| MD-T12 | 렌더: 오너 요청 목록 전부 + 머리말 · HTML 허용 목록 · 한 줄 `$$` 고정물 · 골든 12장 + 폰 편집 1장 · 대비 시험 | B |
+| MD-T12 | 렌더: 오너 요청 목록 전부 + 머리말 · HTML 허용 목록 · 한 줄 `$$` 고정물 · 골든 12장 + 폰 편집 1장 · 대비 시험(`contrast_test`, 6 테마) · 닫히지 않은 `$$` · 긴 줄 | B(통과) |
 | MD-T13 | 원격 이미지 · 링크: 네트워크 요청 0(HttpOverrides), 시트, 열기는 자리 있을 때만, `javascript:` 열기 없음 | B |
-| MD-T14 | 할 일 토글 → 그 글자만 바뀜 · 저장 · 되돌리기 알림 · 나란히에서 입력 중 토글해도 글 안 잃음 | B |
-| MD-T15 | 자동 저장(fake_async): 700 ms · 5 s · 조합 중 1 s 미룸 · 비우기는 조합 무시 · 보기 전환/뒤로/앱 숨김 → 저장 + flush · 실패 → 글 남고 띠 · 뒤로 → 떠나기 대화 셋 · 메아리로 커서가 안 움직임 · 다른 기기 글 → 사본 띠 | B |
+| MD-T14 | 할 일 토글 → 그 글자만 바뀜 · 저장 · 되돌리기 알림(버퍼가 움직이면 아무것도 안 함) · 훑은 상자 ≠ 파서 상자면 보이기만 · 나란히에서 입력 중 토글해도 글 안 잃음 | B(통과) |
+| MD-T15 | 자동 저장(fake_async): 700 ms · 5 s · 조합 중 1 s 미룸 · 비우기는 조합 무시 · 보기 전환/뒤로/앱 숨김 → 저장 + flush · 실패 → 글 남고 띠 · 뒤로 → 떠나기 대화 셋 · 메아리로 커서가 안 움직임 · 다른 기기 글 → 사본 띠 · 커서가 바뀐 곳 둘레를 따라감 · 못 저장한 글: 나중 저장 성공이면 지움, 되살리기는 옛 base로(사본), 다른 길로 닫혀도 남김 | B(통과) |
 | MD-T16 | CRLF/BOM 문서 한 글자 고침 → CRLF · BOM 그대로 | B |
-| MD-T17 | 검색 이동(원문 기준, 목록 · 표 · 코드 안) · 강조 · 보기↔편집 위치 유지 | B |
+| MD-T17 | 검색 이동(원문 기준, 목록 · 표 · 코드 안) · 강조(블록 — 8.12) · 보기↔편집 위치 유지 · 다른 기기 글이 와도 보기의 맨 위 블록 유지 | B(통과) |
 | MD-T18 | 규칙 · 예산: `ws check --strict` 0, `flutter analyze` 0, 날 색 · 아이콘 시험, main.dart.js 차이 보고(17절) | 기반(통과) · A |
-| MD-T19 | 되돌리기 상한: 200칸 · 글자 합 상한에서 오래된 것부터 버림 | B |
-| MD-T20 | 성능(perf): 100 KB 첫 그림 < 300 ms, 100 KB · 400 KB 글자당 프레임, 2,000항목 목록 | B |
+| MD-T19 | 되돌리기 상한: 200칸 · 글자 합 상한에서 오래된 것부터 버림 · 다른 기기 글에서 비움 · 키보드 Ctrl+Z도 이 기록 · 필드 기록 비우기(`renewField`) | B(통과) |
+| MD-T20 | 성능(perf): 100 KB 첫 그림 < 300 ms, 100 KB · 149,900 단위 글자당 시간(400 KB는 보기 전용 첫 그림), 2,000항목 목록 | B(VM 수치 — 8.7; 첫 그림은 기계 부하로 240~360 ms 오감) |
 
 ---
 
@@ -726,3 +742,28 @@ final markdownOpenLinkProvider = Provider<MarkdownOpenLinkAction?>((ref) => null
 | U20 큰 목록 · 표, 한 줄 `$$`, data: 캐시, 줄바꿈 설정 | 일부 받아들임 | 앞 셋 받아들임. **'줄바꿈 그대로 보기' 설정은 거절**(v1 범위 · 설정 늘리기 — GFM이 오너가 가져올 파일들의 표준이고, 오너가 실제로 요청하면 설정 하나로 더할 수 있음) |
 | U21 공유 MIME · README 제목 · CP949 문구 | 받아들임 | 10.2 · 10.4 |
 | U22 골든 수 · 나란히 단추 · 뒤로 순서 · 실기기 수치 | 받아들임 | 12장, 8.4, 15.4 체크리스트 |
+
+### 19.1 트랙 B 코드 검토 반영 (2026-11-17, 검토 A: 정확성 · 데이터 안전 A1~A10, 검토 B: 계약 · UX B1~B13)
+
+| 항목 | 판정 | 반영 |
+|---|---|---|
+| A1 · B1 일시정지 때 남긴 글이 나중 새 글을 덮음 · 다른 기기 글을 사본 없이 덮음 | 받아들임 | 칸을 문서마다 `{text, base, at}`로, 그 문서 저장이 성공하면 이 화면이 넣은 칸을 지움, 되살리기는 칸의 `base`로 저장(`restoreText`) → L1 사본. 시험: `review_fixes_test` 첫 둘, `controller_test` restoreText |
+| A2 되돌리기가 다른 기기 글을 사본 없이 지움 | 받아들임 | `BoundedUndoHistory.reset` — 들어온 변경 · 첫 읽기에서 기록 비움(8.7 ③을 바꿈) |
+| A3 · B6 토글 알림 [되돌리기]가 다른 상자를 뒤집음 | 받아들임 | 토글 직후 버퍼와 같을 때만, `toggleTaskAt`이 `]`도 확인 |
+| A4 수만 같으면 코드 줄을 고침 | 받아들임 | `TaskMarks.matches`(표시 · 체크 상태 · 첫 낱말), 목록 안 들여쓴 코드 건너뜀, 목록 안 들여쓴 `>` |
+| A5 띄어쓰기 없는 긴 줄이 파싱을 멈춤 | 받아들임 | `LongRunSyntax`(8.11), 500,000자 시험 |
+| A6 닫히지 않은 `$$`가 나머지를 삼킴 | 받아들임 | 닫는 것이 있을 때만 수식 블록(8.11) |
+| A7 큰 표 한 번에 빌드 | 받아들임(다른 해법) | 행 묶음 대신 앞 100행 + [더 보기], 표본 칸 폭(8.11) |
+| A8 · B7 다른 길로 닫히면 글 잃음 · [버리고 나가기]가 저장함 | 받아들임 | dispose의 저장이 실패하면 칸에 넣음, `discard()` |
+| A9 섞인 줄 끝 · 외톨이 CR | 일부 받아들임 | 외톨이 CR 파일은 CR로 왕복(4.6 코덱 `cr`). **섞인 줄 끝을 첫 편집에서 맞추는 것은 그대로**(18 R2 — 줄마다 원래 끝을 기억하려면 버퍼 밖 위치 표가 필요해 v1에 과함, 드묾) |
+| A10 · B2 되돌리기 상한 없음 | 받아들임 | `BoundedUndoHistory` + 키보드 단축키를 그쪽으로 + 필드 기록 비우기(8.7), MD-T19 |
+| B3 계획 · 계약이 구현과 다름 | 받아들임 | 이 절 · 8.12 · C217M-14 · MD-T 행. 대비 시험(`contrast_test`)은 만듦 |
+| B4 [사본 열기]를 만들 API 없음 | 받아들임 | `MarkdownScreen.onOpenMarkdown`(12.2 · C217M-14), 통합 때 A가 연결 |
+| B5 편집 상한 측정 없음 | 받아들임 | perf 시험 둘(8.7 수치), 실기기 체크 항목(15.4). 상한은 실기기 수치 전까지 그대로 |
+| B8 [←]가 뒤로 순서를 건너뜀 | 받아들임 | [←] = 시스템 뒤로와 같은 순서 |
+| B9 보기로 바꿀 때 `noteStore.flush()` 안 함 | 받아들임 | `flush(store: true)` |
+| B10 들어온 변경에서 위치 잃음 | 받아들임 | 커서는 `mapOffsetThroughChange`, 보기는 맨 위 블록 키 + 높이 유지(`topAnchor` · `restoreAnchor`) |
+| B11 폰 기호 줄이 넘치는데 표시 없음 · 44 dp | 받아들임 | 끝 가장자리 흐림(`toolbar` 토큰), 단추 48 dp |
+| B12 할 일 줄이 글머리 줄보다 훨씬 높음 | 거절 | 누를 곳 48 dp(8.5 · 검토 U7)는 줄끼리 겹칠 수 없어 줄 높이가 곧 누를 곳이다 — 오너는 태블릿에서 손가락 · 펜으로 누름. 상자 위치 7 px은 글머리 기호도 같은 칸 가운데라 맞춰져 있음 |
+| B13 계획의 시험 빠짐 | 받아들임 | MD-T12 대비, MD-T15 커서, MD-T17 위치, MD-T19, MD-T20 |
+

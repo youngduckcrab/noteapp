@@ -14,6 +14,7 @@ final class MdHarness {
   final NoteStore store;
   int closed = 0;
   int openedAsNote = 0;
+  final List<NoteId> openedMarkdown = [];
 
   static Future<MdHarness> create(WidgetTester tester) async {
     final store = createFakeNoteStore();
@@ -43,6 +44,7 @@ final class MdHarness {
     List<Override> overrides = const [],
     double textScale = 1,
     bool settle = true,
+    bool canOpenMarkdown = false,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -65,6 +67,7 @@ final class MdHarness {
             initialQuery: query,
             onClose: () => closed++,
             onOpenAsNote: () => openedAsNote++,
+            onOpenMarkdown: canOpenMarkdown ? openedMarkdown.add : null,
           ),
         ),
       ),

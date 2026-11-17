@@ -1,14 +1,19 @@
 // B-13 / MD-T20 (08-markdown 8.11, 16): a 100 KB document paints its first screen in under
-// 300 ms on the VM, a 2,000-item list too, and typing in 편집 never parses. Run with
-// `flutter test --run-skipped -t perf`.
+// 300 ms on the VM, a 2,000-item list too, and typing in 편집 never parses; the time of
+// one keystroke at 100 KB and at the edit limit (kMaxEditUnits), and a 400 KB document
+// (the store's limit) opening view-only. Run with `flutter test --run-skipped -t perf`.
+// VM debug numbers: the owner's tablet (release) is checked by hand (08-markdown 8.7).
 @Tags(['perf'])
 @TestOn('vm')
 library;
 
 import 'package:feature_markdown/feature_markdown.dart';
 import 'package:feature_markdown/src/parse/md_document.dart';
+import 'package:feature_markdown/src/screen/markdown_controller.dart'
+    show kMaxEditUnits;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:note_core/note_core.dart' show MarkdownLimits;
 
 import '../support/pump.dart';
 import '../support/sample_doc.dart';
@@ -92,5 +97,68 @@ void main() {
     // ignore: avoid_print
     print('20 keystrokes on 100 KB: ${sw.elapsedMilliseconds} ms');
     expect(debugParseCount, before);
+  });
+
+  testWidgets('one keystroke at 100 KB and at the edit limit (MD-T20)', (
+    tester,
+  ) async {
+    final h = await MdHarness.create(tester);
+    for (final units in [100 * 1024, kMaxEditUnits - 100]) {
+      final text = _sized(units).substring(0, units);
+      final id = await h.doc(tester, text);
+      await h.pump(tester, id, initialEdit: true);
+      await tester.showKeyboard(find.byKey(MarkdownKeys.editor));
+      final field = find.byKey(MarkdownKeys.editor);
+      var current = (tester.widget(field) as TextField).controller!.value;
+      // warm up
+      for (var i = 0; i < 3; i++) {
+        current = current.copyWith(
+          text: '${current.text}a',
+          selection: TextSelection.collapsed(offset: current.text.length + 1),
+        );
+        tester.testTextInput.updateEditingValue(current);
+        await tester.pump();
+      }
+      final times = <int>[];
+      for (var i = 0; i < 10; i++) {
+        current = current.copyWith(
+          text: '${current.text}가',
+          selection: TextSelection.collapsed(offset: current.text.length + 1),
+        );
+        final sw = Stopwatch()..start();
+        tester.testTextInput.updateEditingValue(current);
+        await tester.pump();
+        sw.stop();
+        times.add(sw.elapsedMilliseconds);
+      }
+      times.sort();
+      // ignore: avoid_print
+      print(
+        'keystroke at $units units: median ${times[5]} ms, '
+        'max ${times.last} ms (VM debug)',
+      );
+      expect(times[5], lessThan(3000));
+      await tester.pumpWidget(const SizedBox());
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+    }
+  });
+
+  testWidgets('400 KB (the store limit): view-only, first paint measured', (
+    tester,
+  ) async {
+    final h = await MdHarness.create(tester);
+    // Korean is 3 bytes in UTF-8: cut to just under the store's 400,000 bytes.
+    var text = _sized(200 * 1024);
+    while (MarkdownLimits.utf8BytesOf(text) > 395000) {
+      text = text.substring(0, text.lastIndexOf('\n\n', text.length - 1000));
+    }
+    await _firstPaintMs(tester, h, _sized(60 * 1024));
+    final ms = await _firstPaintMs(tester, h, text);
+    // ignore: avoid_print
+    print('first paint ${text.length} units: $ms ms');
+    expect(find.byKey(MarkdownKeys.bannerTooLargeToEdit), findsOneWidget);
+    expect(ms, lessThan(1500));
   });
 }

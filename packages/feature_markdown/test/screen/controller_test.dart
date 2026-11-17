@@ -251,4 +251,149 @@ void main() {
     expect(c.dirty, isFalse);
     unawaited(c.flush());
   });
+
+  group('review fixes', () {
+    test('the cursor follows the text around a change from another device '
+        '(MD-T15)', () async {
+      final (c, id) = await open('첫 줄\n둘째 줄\n셋째 줄');
+      // cursor in the third line
+      c.text.selection = const TextSelection.collapsed(offset: 10);
+      await FakeMarkdownHooks.remoteText(store, id, '새 머리줄\n첫 줄\n둘째 줄\n셋째 줄');
+      await _settle(10);
+      expect(c.text.text.substring(c.text.selection.baseOffset), '째 줄');
+      // a change after the cursor leaves it alone
+      final before = c.text.selection.baseOffset;
+      await FakeMarkdownHooks.remoteText(store, id, '새 머리줄\n첫 줄\n둘째 줄\n셋째 줄 끝');
+      await _settle(10);
+      expect(c.text.selection.baseOffset, before);
+    });
+
+    test('undo never crosses another device\'s change (review A2)', () async {
+      final (c, id) = await open('내 글');
+      c.text.text = '내 글 더';
+      await _settle();
+      expect(c.undo.value.canUndo, isTrue);
+      await FakeMarkdownHooks.remoteText(store, id, '다른 기기의 긴 글');
+      await _settle(10);
+      expect(c.text.text, '다른 기기의 긴 글');
+      expect(c.undo.value.canUndo, isFalse);
+      c.undoStep();
+      await _settle();
+      expect(await stored(id), '다른 기기의 긴 글');
+    });
+
+    test('undoStep / redoStep go through the buffer and are saved', () async {
+      final (c, id) = await open('a');
+      c.text.text = 'ab';
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      c.text.text = 'abc';
+      await _settle();
+      c.undoStep();
+      expect(c.text.text, 'ab');
+      await _settle();
+      expect(await stored(id), 'ab');
+      c.redoStep();
+      await _settle();
+      expect(await stored(id), 'abc');
+    });
+
+    test('toggleTaskAt needs [ mark ] (review A3)', () async {
+      final (c, id) = await open('- [ ] a\n[x b');
+      expect(await c.toggleTaskAt(3), isTrue);
+      expect(c.text.text, '- [x] a\n[x b');
+      // '[x' without ']' is not a box
+      expect(await c.toggleTaskAt(9), isFalse);
+      expect(await c.toggleTaskAt(0), isFalse);
+      expect(await stored(id), '- [x] a\n[x b');
+    });
+
+    test('restoreText saves against the version the text was written on: a '
+        'newer text is kept as a conflict copy (review A1 / B1)', () async {
+      final (c, id) = await open('v1');
+      final v1 = c.base;
+      await FakeMarkdownHooks.remoteText(store, id, 'v2 다른 기기');
+      await _settle(10);
+      expect(c.text.text, 'v2 다른 기기');
+      await c.restoreText('예전에 못 저장한 글', base: v1);
+      expect(await stored(id), '예전에 못 저장한 글');
+      expect(c.conflictCopyId, isNotNull);
+      expect((await store.markdown.get(c.conflictCopyId!))!.text, 'v2 다른 기기');
+    });
+
+    test('restoreText on an unchanged document: no conflict copy', () async {
+      final (c, id) = await open('v1');
+      await c.restoreText('복원한 글', base: c.base);
+      expect(await stored(id), '복원한 글');
+      expect(c.conflictCopyId, isNull);
+    });
+
+    test('discard: nothing more is saved (review B7)', () async {
+      final (c, id) = await open('a');
+      c.text.text = '버릴 글';
+      c.discard();
+      expect(c.dirty, isFalse);
+      expect(await c.flush(), isTrue);
+      await _settle();
+      expect(await stored(id), 'a');
+    });
+
+    test('onSaved after each successful save', () async {
+      final note = await store.markdown.create(title: 't', text: 'a');
+      var saved = 0;
+      final c = MarkdownController(
+        noteId: note.id,
+        repository: repo,
+        flushStore: () async {},
+        onSaved: () => saved++,
+        debounce: const Duration(milliseconds: 20),
+      );
+      addTearDown(c.dispose);
+      await _settle(10);
+      repo.failWith = 'disk';
+      c.text.text = 'b';
+      await _settle();
+      expect(saved, 0);
+      repo.failWith = null;
+      await c.flush();
+      expect(saved, 1);
+    });
+
+    test('renewField: same value, still listened to, field history dropped '
+        '(review B2)', () async {
+      final (c, id) = await open('abc');
+      final old = c.text;
+      var notified = 0;
+      c.addListener(() => notified++);
+      c.text.value = const TextEditingValue(
+        text: 'abcd',
+        selection: TextSelection.collapsed(offset: 4),
+      );
+      c.renewField();
+      expect(identical(c.text, old), isFalse);
+      expect(c.text.value.text, 'abcd');
+      expect(c.text.selection.baseOffset, 4);
+      expect(notified, greaterThan(0));
+      c.text.text = 'abcde';
+      await _settle();
+      expect(await stored(id), 'abcde');
+      // not while an IME composition is open
+      c.text.value = const TextEditingValue(
+        text: 'abcde한',
+        selection: TextSelection.collapsed(offset: 6),
+        composing: TextRange(start: 5, end: 6),
+      );
+      final current = c.text;
+      c.renewField();
+      expect(identical(c.text, current), isTrue);
+    });
+
+    test('mapOffsetThroughChange', () {
+      final m = mapOffsetThroughChange('abcXYZdef', 'abcQdef');
+      expect(m(2), 2);
+      expect(m(3), 3);
+      expect(m(5), 3);
+      expect(m(6), 4);
+      expect(m(9), 7);
+    });
+  });
 }

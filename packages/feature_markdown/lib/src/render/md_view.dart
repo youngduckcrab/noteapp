@@ -130,6 +130,44 @@ class MdViewController {
     return null;
   }
 
+  /// The first block on screen whose start is drawn (its first unit), and how far its
+  /// top is below the top of the view (negative: scrolled past). null when none.
+  ({int block, double dy})? topAnchor() {
+    if (!scroll.hasClients) return null;
+    final keys = _mounted.keys.toList()..sort();
+    for (final u in keys) {
+      final unit = _units[u];
+      if (!unit.first || unit.block < 0) continue;
+      final top = _topOf(u);
+      if (top == null) continue;
+      final box = _mounted[u]!.findRenderObject()! as RenderBox;
+      if (top + box.size.height > scroll.offset) {
+        return (block: unit.block, dy: top - scroll.offset);
+      }
+    }
+    return null;
+  }
+
+  /// Scrolls so block [block]'s top is [dy] below the top of the view (see [topAnchor]).
+  Future<void> restoreAnchor(int block, double dy) async {
+    if (!await revealBlock(block)) return;
+    final u = _blockUnit[block];
+    final top = _topOf(u);
+    if (top == null || !scroll.hasClients) return;
+    final pos = scroll.position;
+    pos.jumpTo((top - dy).clamp(pos.minScrollExtent, pos.maxScrollExtent));
+  }
+
+  double? _topOf(int u) {
+    final ctx = _mounted[u];
+    if (ctx == null || !ctx.mounted) return null;
+    final box = ctx.findRenderObject();
+    if (box is! RenderBox || !box.attached) return null;
+    final viewport = RenderAbstractViewport.maybeOf(box);
+    if (viewport == null) return null;
+    return viewport.getOffsetToReveal(box, 0).offset;
+  }
+
   /// Brings block [block] into view (near the top); `doc.blocks.length` = the
   /// footnotes. False when it could not.
   Future<bool> revealBlock(int block) async {

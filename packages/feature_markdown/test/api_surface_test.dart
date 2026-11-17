@@ -91,8 +91,15 @@ void main() {
       initialEdit: true,
       onClose: _noop,
       onOpenAsNote: _noop,
+      onOpenMarkdown: _openMd,
     );
     expect(screen.noteId, 'n');
+    final ValueChanged<NoteId>? openMd = screen.onOpenMarkdown;
+    expect(openMd, isNotNull);
+    expect(
+      const MarkdownScreen(noteId: 'n', onClose: _noop).onOpenMarkdown,
+      isNull,
+    );
     expect(screen.initialQuery, 'q');
     expect(screen.initialEdit, isTrue);
     expect(
@@ -178,3 +185,5 @@ void main() {
 }
 
 void _noop() {}
+
+void _openMd(NoteId id) {}
