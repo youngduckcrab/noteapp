@@ -155,8 +155,9 @@ enum AppIconKind {
   /// '.md로 내보내기'.
   exportMarkdown(Icons.file_download_outlined),
 
-  /// 편집 (source editor) of the 보기 ↔ 편집 button.
-  editSource(Icons.edit_document),
+  /// 원문 (the whole markdown source editor) of the 보기 ↔ 원문 button: a source glyph,
+  /// not a pencil — 보기 edits in place since v2.18-md (08-markdown 24.17 L′12).
+  editSource(Icons.integration_instructions_outlined),
 
   /// 보기 (rendered view) of the 보기 ↔ 편집 button.
   viewRendered(Icons.menu_book_rounded),
