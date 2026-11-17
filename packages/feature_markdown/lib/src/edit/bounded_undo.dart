@@ -55,6 +55,10 @@ class BoundedUndoHistory extends ValueNotifier<UndoHistoryValue> {
     _publish();
   }
 
+  /// Ends the current typing group: the next change is a step of its own (opening or
+  /// closing a live block, a toolbar action — 08-markdown 24.15 D′10).
+  void seal() => _seal();
+
   void _seal() {
     _sealed = true;
     _group?.cancel();

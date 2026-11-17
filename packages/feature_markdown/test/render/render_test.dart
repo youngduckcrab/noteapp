@@ -279,15 +279,22 @@ void main() {
       final id = await h.doc(tester, kSampleMarkdown);
       await h.pump(tester, id, size: size, textScale: 2);
       expect(tester.takeException(), isNull);
-      await h.pump(tester, id, size: size, textScale: 2, initialEdit: true);
+      await h.pump(tester, id, size: size, textScale: 2, source: true);
       expect(tester.takeException(), isNull);
     });
   }
 
-  testWidgets('empty document shows a hint', (tester) async {
-    final h = await MdHarness.create(tester);
-    final id = await h.doc(tester, '');
-    await h.pump(tester, id);
-    expect(find.text('아직 내용이 없어요'), findsOneWidget);
-  });
+  testWidgets(
+    'empty document shows a hint (read-only: text; editable: placeholder)',
+    (tester) async {
+      final h = await MdHarness.create(tester);
+      final id = await h.doc(tester, '');
+      await h.pump(tester, id);
+      expect(find.text('여기에 쓰세요'), findsOneWidget);
+      await tester.runAsync(() => h.store.library.trashItems([NoteRef(id)]));
+      await settleMd(tester);
+      expect(find.text('아직 내용이 없어요'), findsOneWidget);
+      expect(find.byKey(MarkdownKeys.emptyEdit), findsNothing);
+    },
+  );
 }

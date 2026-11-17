@@ -9,7 +9,7 @@ abstract final class MarkdownKeys {
   static const ValueKey<String> back = ValueKey('md.back');
   static const ValueKey<String> title = ValueKey('md.title');
 
-  /// The single 보기 ↔ 편집 button.
+  /// The single 보기 ↔ 원문 button (v2.18-md: 보기 is the live editor, 원문 the source).
   static const ValueKey<String> mode = ValueKey('md.mode');
 
   /// 나란히 (side-by-side editor + preview, wide landscape only).
@@ -26,10 +26,11 @@ abstract final class MarkdownKeys {
   /// The rendered view's scrollable.
   static const ValueKey<String> view = ValueKey('md.view');
 
-  /// [편집하기] of an empty document's 보기.
+  /// [편집하기] of an empty document's 보기 (v2.18-md: never shown — an editable empty
+  /// document shows [livePlaceholder], a read-only one the text alone).
   static const ValueKey<String> emptyEdit = ValueKey('md.emptyEdit');
 
-  /// The source editor's TextField.
+  /// The source editor's TextField (원문 mode).
   static const ValueKey<String> editor = ValueKey('md.editor');
 
   /// The symbol row above the keyboard while editing (# - [ ] * ` $ | > indent outdent).
@@ -123,6 +124,29 @@ abstract final class MarkdownKeys {
 
   /// The table's [더 보기] (a long table shows its rows in parts).
   static ValueKey<String> tableMore(int i) => ValueKey('md.table.$i.more');
+
+  // --- live block editing (v2.18-md, 08-markdown 24.11) ---------------------------
+  /// The open live block field.
+  static const ValueKey<String> liveField = ValueKey('md.live.field');
+
+  /// An empty, editable document's '여기에 쓰세요'.
+  static const ValueKey<String> livePlaceholder = ValueKey(
+    'md.live.placeholder',
+  );
+
+  /// '눌러서 이어 쓰기' under the last block.
+  static const ValueKey<String> liveAddEnd = ValueKey('md.live.addEnd');
+
+  /// The chip of block `<i>`, a footnote / link reference definition.
+  static ValueKey<String> liveDefinition(int i) => ValueKey('md.live.def.$i');
+
+  /// The format toolbar while a block is open, and its buttons.
+  static const ValueKey<String> liveToolbar = ValueKey('md.live.toolbar');
+  static ValueKey<String> liveToolbarButton(String name) =>
+      ValueKey('md.live.toolbar.$name');
+
+  /// [이 블록 고치기] of the link sheet.
+  static const ValueKey<String> linkSheetEdit = ValueKey('md.linkSheet.edit');
 
   // --- per element ----------------------------------------------------------------
   static ValueKey<String> block(int i) => ValueKey('md.block.$i');

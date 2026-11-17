@@ -81,10 +81,80 @@ void main() {
     expect(ms, lessThan(300));
   });
 
-  testWidgets('typing in 편집 never parses', (tester) async {
+  testWidgets('live block: keystroke cost does not grow with the document; close < 300 ms '
+      '(MD-T32)', (tester) async {
+    final h = await MdHarness.create(tester);
+    Future<(int, int)> run(int bytes) async {
+      final id = await h.doc(tester, _sized(bytes));
+      await h.pump(tester, id);
+      // The whole parse (another isolate above 50 KB).
+      for (var i = 0; i < 100; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+      }
+      await tester.tap(
+        find.textContaining('이번 주 회의에서', findRichText: true).first,
+      );
+      await tester.pump();
+      final field = find.descendant(
+        of: find.byKey(MarkdownKeys.liveField),
+        matching: find.byType(TextField),
+      );
+      expect(field, findsOneWidget);
+      final before = debugParseCount;
+      var current = (tester.widget(field) as TextField).controller!.value;
+      final times = <int>[];
+      for (var i = 0; i < 23; i++) {
+        current = current.copyWith(
+          text: '${current.text}가',
+          selection: TextSelection.collapsed(offset: current.text.length + 1),
+        );
+        final sw = Stopwatch()..start();
+        tester.testTextInput.updateEditingValue(current);
+        await tester.pump();
+        sw.stop();
+        if (i >= 3) times.add(sw.elapsedMicroseconds);
+      }
+      times.sort();
+      expect(debugParseCount, before, reason: 'typing in a block never parses');
+      final sw = Stopwatch()..start();
+      await tester.tap(find.byKey(MarkdownKeys.liveToolbarButton('done')));
+      await tester.pump();
+      for (
+        var i = 0;
+        i < 200 && find.byKey(MarkdownKeys.liveField).evaluate().isNotEmpty;
+        i++
+      ) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 1)),
+        );
+        await tester.pump();
+      }
+      sw.stop();
+      return (times[10], sw.elapsedMilliseconds);
+    }
+
+    await run(2 * 1024); // warm up
+    final (small, _) = await run(2 * 1024);
+    final (large, close) = await run(100 * 1024);
+    // ignore: avoid_print
+    print(
+      'live keystroke median: 2 KB ${small / 1000} ms, 100 KB ${large / 1000} ms; '
+      'close + redraw at 100 KB $close ms (VM debug; 원문 at 100 KB ~520 ms)',
+    );
+    // The field holds one block: a keystroke costs about the same on any document
+    // (the VM debug floor of one TextField keystroke here is ~15-20 ms).
+    expect(large, lessThan(small * 2 + 8000));
+    expect(large, lessThan(40000));
+    expect(close, lessThan(300));
+  });
+
+  testWidgets('typing in 원문 never parses', (tester) async {
     final h = await MdHarness.create(tester);
     final id = await h.doc(tester, _sized(100 * 1024));
-    await h.pump(tester, id, initialEdit: true);
+    await h.pump(tester, id, source: true);
     final before = debugParseCount;
     final field = find.byKey(MarkdownKeys.editor);
     final text = (tester.widget(field) as TextField).controller!.text;
@@ -106,7 +176,7 @@ void main() {
     for (final units in [100 * 1024, kMaxEditUnits - 100]) {
       final text = _sized(units).substring(0, units);
       final id = await h.doc(tester, text);
-      await h.pump(tester, id, initialEdit: true);
+      await h.pump(tester, id, source: true);
       await tester.showKeyboard(find.byKey(MarkdownKeys.editor));
       final field = find.byKey(MarkdownKeys.editor);
       var current = (tester.widget(field) as TextField).controller!.value;

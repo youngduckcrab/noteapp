@@ -4,11 +4,13 @@
 // screens:
 //
 //   library → 새로 만들기 › MD 가져오기 (one .md file) → the document opens in 보기 (rendered
-//   heading, task box) → 편집 → type → [←] twice (편집 → 보기 → library) → the text is
+//   heading, task box) → 원문 → type → [←] twice (원문 → 보기 → library) → the text is
 //   stored and the MD card shows it → library search finds the body → the hit opens the
 //   document at /md/<id>?q= with the landing highlight → ⋯ › .md로 내보내기 › 저장 gives the
 //   stored text byte for byte, named from the title → back → 새로 만들기 › 새 MD 문서 opens
-//   an empty document in 편집 → type → back (보기 at full width) → back → ⋯ › 휴지통으로
+//   an empty document in 보기 with the live field (v2.18-md) → type Korean + English →
+//   Enter → a second paragraph → back (the block closes; 보기 at full width) → back → the
+//   card shows the text → reopen → tap a block, edit in place → back → ⋯ › 휴지통으로
 //   이동 → 휴지통 → 복원 → the card is back.
 //
 // Controls are found by the packages' widget keys (strings — the key classes of
@@ -48,7 +50,7 @@ const String kE2eMarkdownText =
     r'$$\int_0^1 x^2\,dx = \frac{1}{3}$$'
     '\n';
 
-/// The text typed in 편집 (appended paragraph).
+/// The text typed in 원문 (appended paragraph).
 const String kE2eTyped = '\n적분은 넓이를 구하는 도구다.\n';
 
 /// A text file picker that returns [files] once per call (null → cancelled).
@@ -166,7 +168,7 @@ Future<void> runMarkdownEndToEnd(WidgetTester tester, CoreModule core) async {
   expect(find.byKey(MarkdownKeys.math(0)), findsOneWidget);
   expect(find.byKey(MarkdownKeys.editor), findsNothing);
 
-  // 2. 편집 → type → [←] (편집 → 보기) → [←] (library): stored, the card follows.
+  // 2. 원문 → type → [←] (원문 → 보기) → [←] (library): stored, the card follows.
   await _tap(tester, find.byKey(MarkdownKeys.mode));
   expect(find.byKey(MarkdownKeys.editor), findsOneWidget);
   final edited = '$kE2eMarkdownText$kE2eTyped';
@@ -233,20 +235,35 @@ Future<void> runMarkdownEndToEnd(WidgetTester tester, CoreModule core) async {
   await tester.enterText(_searchInput(), '');
   await _frames(tester);
 
-  // 5. 새로 만들기 › 새 MD 문서 → name dialog → 만들기 → opens in 편집.
+  // 5. 새로 만들기 › 새 MD 문서 → name dialog → 만들기 → 보기 with the live field: type in
+  //    place (Korean + English), Enter, a second paragraph (v2.18-md, MD-T33).
   await _tap(tester, _newMenu());
   await _tap(tester, find.byKey(const Key('library.new.markdown')));
   await _tap(tester, find.text('만들기'));
-  await _waitFor(tester, find.byKey(MarkdownKeys.editor), 'the new doc (편집)');
-  // Typed, then [←] → 보기: the rendered text keeps the full width (it collapsed to a
-  // 0 px column, one character per line, while the editor stayed mounted Offstage).
-  await tester.enterText(
-    find.byKey(MarkdownKeys.editor),
-    '# 새 문서\n\n처음 적는 문단입니다. The first paragraph.\n',
+  await _waitFor(
+    tester,
+    find.byKey(MarkdownKeys.liveField),
+    'the new doc (field)',
   );
+  expect(find.byKey(MarkdownKeys.editor), findsNothing);
+  void ime(String text) => tester.testTextInput.updateEditingValue(
+    TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    ),
+  );
+  const first = '처음 적는 문단입니다. The first paragraph.';
+  ime(first);
   await _frames(tester);
+  ime('$first\n'); // Enter: a new paragraph line in the same field
+  await _frames(tester);
+  ime('$first\n\n둘째 문단');
+  await _frames(tester);
+  // [←] closes the block (the rendered text keeps the full width — it once collapsed
+  // to a 0 px column, one character per line), [←] again leaves.
   await _tap(tester, find.byKey(MarkdownKeys.back));
-  await _waitFor(tester, find.byKey(MarkdownKeys.view), 'the new doc (보기)');
+  expect(find.byKey(MarkdownKeys.liveField), findsNothing);
+  expect(find.text('둘째 문단'), findsOneWidget);
   expect(
     tester.getSize(find.byKey(MarkdownKeys.view)).width,
     greaterThan(
@@ -262,7 +279,40 @@ Future<void> runMarkdownEndToEnd(WidgetTester tester, CoreModule core) async {
   );
   final both = await settle(tester, 'two docs', () => _markdownNotes(app));
   expect(both, hasLength(2));
-  expect(both.map((n) => n.title), contains('새 MD 문서'));
+  final fresh = both.singleWhere((n) => n.title == '새 MD 문서');
+  final typed = await settle(
+    tester,
+    'the typed doc',
+    () => app.store.markdown.get(fresh.id),
+  );
+  expect(typed!.text, '$first\n\n둘째 문단');
+  await _waitFor(
+    tester,
+    find.textContaining('처음 적는 문단', findRichText: true),
+    'the card preview',
+  );
+
+  // Reopen it, tap the second paragraph, edit it in place, leave: stored.
+  await _tap(tester, find.text('새 MD 문서').first);
+  await _waitFor(tester, find.text('둘째 문단'), 'the doc again');
+  await _tap(tester, find.text('둘째 문단'));
+  expect(find.byKey(MarkdownKeys.liveField), findsOneWidget);
+  ime('둘째 문단 고침');
+  await _frames(tester);
+  await _tap(tester, find.byKey(MarkdownKeys.back));
+  await _tap(tester, find.byKey(MarkdownKeys.back));
+  await _waitFor(tester, find.byType(LibraryScreen), 'the library (5)');
+  await pumpUntil(
+    tester,
+    () => find.byKey(MarkdownKeys.screen).evaluate().isEmpty,
+    reason: 'the doc closed again',
+  );
+  final fixed = await settle(
+    tester,
+    'the fixed doc',
+    () => app.store.markdown.get(fresh.id),
+  );
+  expect(fixed!.text, '$first\n\n둘째 문단 고침');
 
   // 6. ⋯ › 휴지통으로 이동 → 휴지통 → 복원 → back in the library.
   await _waitFor(tester, _tile('미적분 정리'), 'the card');

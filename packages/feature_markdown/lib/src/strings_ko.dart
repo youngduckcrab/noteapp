@@ -3,12 +3,12 @@ abstract final class MdStrings {
   // --- top bar -----------------------------------------------------------------
   static const String back = '뒤로';
   static const String view = '보기';
-  static const String edit = '편집';
+  static const String edit = '원문';
   static const String toView = '보기로 바꾸기';
-  static const String toEdit = '편집으로 바꾸기';
+  static const String toEdit = '마크다운 원문으로 고치기';
   static const String split = '나란히';
   static const String splitOff = '나란히 끄기';
-  static const String splitTooltip = '편집과 미리보기를 나란히';
+  static const String splitTooltip = '원문과 미리보기를 나란히';
   static const String undo = '되돌리기';
   static const String redo = '다시 하기';
   static const String more = '더 보기';
@@ -85,6 +85,33 @@ abstract final class MdStrings {
   static const String taskChanged = '할 일을 바꿨어요';
   static const String indent = '들여쓰기';
   static const String outdent = '내어쓰기';
+
+  // --- live block editing (08-markdown 24.11) ---------------------------------
+  static const String livePlaceholder = '여기에 쓰세요';
+  static const String liveAddEnd = '눌러서 이어 쓰기 · 글을 누르면 바로 고쳐요';
+  static const String liveDefinition = '정의';
+  static const String liveLinkDefinition = '링크 정의';
+  static const String liveTooLong = '이 블록은 길어서 원문에서 고쳐요';
+  static const String linkEditBlock = '이 블록 고치기';
+  static const String liveToolbar = '서식';
+  static const String liveDone = '완료';
+  static const String liveH1 = '제목 1';
+  static const String liveH2 = '제목 2';
+  static const String liveH3 = '제목 3';
+  static const String liveBold = '굵게';
+  static const String liveItalic = '기울임';
+  static const String liveStrike = '취소선';
+  static const String liveCode = '코드';
+  static const String liveLink = '링크';
+  static const String liveBullet = '목록';
+  static const String liveNumbered = '번호 목록';
+  static const String liveTask = '할 일';
+  static const String liveQuote = '인용';
+  static const String liveCodeBlock = '코드 블록';
+  static const String liveMath = '수식';
+  static const String liveTable = '표';
+  static const String liveRule = '구분선';
+  static const String liveJoin = '블록 합치기';
 
   // --- images --------------------------------------------------------------------
   static const String image = '이미지';

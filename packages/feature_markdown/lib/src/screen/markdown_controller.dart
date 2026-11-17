@@ -113,6 +113,31 @@ class MarkdownController extends ChangeNotifier {
   int revision = 0;
 
   String _lastText = '';
+  bool _hold = false;
+  bool _held = false;
+  Hlc? _heldBase;
+
+  /// Count Flutter's field history (only while the source editor is mounted — the live
+  /// field never holds the whole buffer; 24.15 D′4).
+  bool countFieldHistory = true;
+
+  /// While a live block field is open (08-markdown 24.15 D′1): another device's text is
+  /// not taken even when the buffer is clean — the field's range would no longer be
+  /// that text. It is taken when the hold ends and the buffer is still clean; when the
+  /// user typed meanwhile, the next save keeps the stored text as a conflict copy (L1).
+  bool get liveHold => _hold;
+  set liveHold(bool v) {
+    if (_hold == v) return;
+    _hold = v;
+    if (!v && _held) {
+      _held = false;
+      final d = doc;
+      // A save since then went against the older base: the store already kept the
+      // other text as a conflict copy, nothing to take.
+      if (d != null && !_disposed && base == _heldBase) _onDoc(d);
+    }
+  }
+
   bool _applying = false;
   bool _fromHistory = false;
   Future<bool>? _saving;
@@ -165,6 +190,9 @@ class MarkdownController extends ChangeNotifier {
           state = MdSaveState.saved;
           _scheduler.cancel();
         }
+      } else if (_hold) {
+        if (!_held) _heldBase = base;
+        _held = true;
       } else if (!dirty && _saving == null) {
         // Clean buffer: take the new text, keep the cursor at the same place of the text
         // around it. The undo history starts again here: an undo across another device's
@@ -208,7 +236,7 @@ class MarkdownController extends ChangeNotifier {
     _lastText = text.text;
     if (!loaded || doc == null) return;
     if (!_fromHistory) undo.record(text.value);
-    _countFieldHistory();
+    if (countFieldHistory) _countFieldHistory();
     dirty = true;
     if (state != MdSaveState.saving) state = MdSaveState.pending;
     _scheduler.changed();

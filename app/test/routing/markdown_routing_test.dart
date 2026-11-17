@@ -129,7 +129,7 @@ void main() {
     expect(_location(tester), markdownRoute(note.id));
   });
 
-  testWidgets('a new document opens in edit mode (edit=1)', (tester) async {
+  testWidgets('a new document opens typing in place (edit=1)', (tester) async {
     await _pump(tester);
     tester.widget<LibraryScreen>(find.byType(LibraryScreen)).onOpenMarkdown!(
       'n9',

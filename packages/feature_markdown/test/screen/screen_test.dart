@@ -82,10 +82,10 @@ void main() {
     expect(find.text('새 문단', findRichText: true), findsOneWidget);
   });
 
-  testWidgets('a new document opens in 편집 (initialEdit)', (tester) async {
+  testWidgets('원문: monospace, no autocorrect', (tester) async {
     final h = await MdHarness.create(tester);
     final id = await h.doc(tester, '');
-    await h.pump(tester, id, initialEdit: true);
+    await h.pump(tester, id, source: true);
     expect(find.byKey(MarkdownKeys.editor), findsOneWidget);
     final field = tester.widget<TextField>(find.byKey(MarkdownKeys.editor));
     expect(field.autocorrect, isFalse);
@@ -93,12 +93,12 @@ void main() {
     expect(field.style?.fontFamily, 'monospace');
   });
 
-  testWidgets('[←] and system back: 편집 → 보기 first, then close (saved)', (
+  testWidgets('[←] and system back: 원문 → 보기 first, then close (saved)', (
     tester,
   ) async {
     final h = await MdHarness.create(tester);
     final id = await h.doc(tester, 'a');
-    await h.pump(tester, id, initialEdit: true);
+    await h.pump(tester, id, source: true);
     await _type(tester, 'ab');
     await tester.binding.handlePopRoute();
     await settleMd(tester);
@@ -140,7 +140,7 @@ void main() {
       await h.pump(
         tester,
         id,
-        initialEdit: true,
+        source: true,
         overrides: [markdownRepositoryProvider.overrideWithValue(repo)],
       );
       await _type(tester, '잃으면 안 되는 글');
@@ -180,7 +180,7 @@ void main() {
       await h.pump(
         tester,
         id,
-        initialEdit: true,
+        source: true,
         overrides: [markdownRepositoryProvider.overrideWithValue(repo)],
       );
       repo.fail = true;
@@ -221,7 +221,7 @@ void main() {
   ) async {
     final h = await MdHarness.create(tester);
     final id = await h.doc(tester, 'a');
-    await h.pump(tester, id, initialEdit: true);
+    await h.pump(tester, id, source: true);
     final big =
         '가' * (MarkdownLimits.maxTextBytes ~/ 3 + 10); // > 400 KB in UTF-8
     await _type(tester, big);
@@ -236,7 +236,7 @@ void main() {
       final h = await MdHarness.create(tester);
       final id = await h.doc(tester, '본문');
       await tester.runAsync(() => FakeMarkdownHooks.removeBody(h.store, id));
-      await h.pump(tester, id, initialEdit: true);
+      await h.pump(tester, id, source: true);
       expect(find.byKey(MarkdownKeys.bannerReceiving), findsOneWidget);
       expect(find.text('내용을 받는 중이에요 — 다 받을 때까지 고칠 수 없어요'), findsOneWidget);
       expect(find.byKey(MarkdownKeys.editor), findsNothing);
@@ -407,7 +407,7 @@ void main() {
   ) async {
     final h = await MdHarness.create(tester);
     final id = await h.doc(tester, '# 하나');
-    await h.pump(tester, id, size: const Size(1194, 834), initialEdit: true);
+    await h.pump(tester, id, size: const Size(1194, 834), source: true);
     expect(find.byKey(MarkdownKeys.split), findsOneWidget);
     await tester.tap(find.byKey(MarkdownKeys.split));
     await settleMd(tester);
@@ -435,7 +435,7 @@ void main() {
     expect(find.byKey(MarkdownKeys.editor), findsOneWidget);
 
     // portrait: no 나란히
-    await h.pump(tester, id, size: const Size(834, 1194), initialEdit: true);
+    await h.pump(tester, id, size: const Size(834, 1194), source: true);
     expect(find.byKey(MarkdownKeys.split), findsNothing);
   });
 
@@ -448,7 +448,7 @@ void main() {
       await h.pump(
         tester,
         id,
-        initialEdit: true,
+        source: true,
         overrides: [markdownRepositoryProvider.overrideWithValue(repo)],
       );
       await _type(tester, '중간');
@@ -494,7 +494,7 @@ void main() {
   testWidgets('undo / redo buttons and the symbol row', (tester) async {
     final h = await MdHarness.create(tester);
     final id = await h.doc(tester, '제목');
-    await h.pump(tester, id, initialEdit: true);
+    await h.pump(tester, id, source: true);
     await tester.tap(find.byKey(MarkdownKeys.editor));
     await settleMd(tester);
     // put the cursor at the end, then '#' goes to the start of the line
@@ -530,7 +530,7 @@ void main() {
         tester,
         id,
         size: const Size(390, 844),
-        initialEdit: true,
+        source: true,
         textScale: 1.3,
       );
       expect(tester.takeException(), isNull);

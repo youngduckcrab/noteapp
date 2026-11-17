@@ -151,12 +151,17 @@ class MdListView extends StatelessWidget {
     this.depth = 0,
     this.quoted = false,
     this.firstItem = 0,
+    this.widestNumber,
   });
 
   final MdList list;
   final int depth;
   final bool quoted;
   final int firstItem;
+
+  /// The number the marker column is measured for (one item of a longer list drawn
+  /// alone keeps the list's alignment); null = this slice's last number.
+  final int? widestNumber;
 
   @override
   Widget build(BuildContext context) {
@@ -165,7 +170,7 @@ class MdListView extends StatelessWidget {
     final body = quoted ? s.quoted(s.body) : s.body;
     final scaler = MediaQuery.textScalerOf(context);
     final lineHeight = scaler.scale(body.fontSize ?? 16) * (body.height ?? 1.6);
-    final last = list.start + firstItem + list.items.length - 1;
+    final last = widestNumber ?? list.start + firstItem + list.items.length - 1;
     var numberWidth = kListIndent;
     if (list.ordered) {
       // The widest number, measured (long numbers and large text scales never wrap).

@@ -11,7 +11,10 @@ import 'package:material_ui/material_ui.dart';
 
 import 'package:ui_kit/ui_kit.dart';
 
+import '../live/live_edit.dart';
+import '../live/live_units.dart';
 import '../markdown_keys.dart';
+import '../parse/list_items.dart';
 import '../parse/md_model.dart';
 import '../strings_ko.dart';
 import 'md_blocks.dart';
@@ -22,6 +25,23 @@ import 'md_style.dart';
 const int kListSplitAt = 40;
 const int kListSlice = 20;
 
+/// What a unit of the live view is besides drawn markdown.
+enum MdUnitSpecial {
+  none,
+
+  /// The live block field (08-markdown 24).
+  field,
+
+  /// '눌러서 이어 쓰기' under the last block.
+  addEnd,
+
+  /// The empty document's '여기에 쓰세요'.
+  placeholder,
+
+  /// A footnote / link reference definition chip.
+  definition,
+}
+
 /// One child of the view's list.
 @immutable
 final class MdUnit {
@@ -31,7 +51,21 @@ final class MdUnit {
     this.node,
     this.firstItem = 0,
     this.footnotes = false,
+    this.live,
+    this.special = MdUnitSpecial.none,
+    this.gap = kBlockGap,
+    this.widestNumber,
   });
+
+  /// The live edit unit this child shows (tapping it opens that unit).
+  final LiveUnit? live;
+  final MdUnitSpecial special;
+
+  /// Space under the unit.
+  final double gap;
+
+  /// For one item of an ordered list: the list's last number (aligned numbers).
+  final int? widestNumber;
 
   /// Index of the block in MdDocument.blocks (-1: the footnotes).
   final int block;
@@ -84,6 +118,175 @@ final class MdUnit {
   return (units: units, blockUnit: blockUnit);
 }
 
+/// The live view's state of one [MdView] (08-markdown 24): null = draw only.
+@immutable
+final class MdLiveView {
+  const MdLiveView({
+    required this.layout,
+    required this.active,
+    required this.field,
+    required this.onTapUnit,
+    required this.onAddEnd,
+    this.onPointerDownUnit,
+  });
+
+  /// A pointer went down on a unit (before a link inside it takes the tap).
+  final void Function(LiveUnit unit)? onPointerDownUnit;
+
+  /// The edit units of the drawn parse.
+  final LiveLayout layout;
+
+  /// The range the open field replaces (of [layout]'s source), or null.
+  final LiveRange? active;
+
+  /// Builds the open field.
+  final WidgetBuilder field;
+
+  /// A unit was tapped at [global] (its context gives the drawn text there).
+  final void Function(LiveUnit unit, Offset global, BuildContext context)
+  onTapUnit;
+
+  /// '눌러서 이어 쓰기' (or the empty document's placeholder).
+  final VoidCallback onAddEnd;
+}
+
+/// The units of the live view: list blocks one unit per top-level item, definitions as
+/// chips, the units under [active] replaced by one field, an [addEnd] row last.
+({List<MdUnit> units, List<int> blockUnit}) liveUnitsOf(
+  LiveLayout layout,
+  LiveRange? active,
+) {
+  final doc = layout.doc;
+  final units = <MdUnit>[];
+  final blockUnit = <int>[];
+  var fieldPlaced = false;
+  bool covered(int start, int end) =>
+      active != null &&
+      !active.pending &&
+      start < active.end &&
+      end > active.start;
+  void field(int block) {
+    if (fieldPlaced) return;
+    fieldPlaced = true;
+    units.add(
+      MdUnit(
+        block: block,
+        first: blockUnit[block] == units.length,
+        special: MdUnitSpecial.field,
+      ),
+    );
+  }
+
+  for (var b = 0; b < doc.blocks.length; b++) {
+    blockUnit.add(units.length);
+    final block = doc.blocks[b];
+    final spans = layout.items[b];
+    if (spans != null) {
+      final items = blockListItems(block)!;
+      final mine = layout.unitsOfBlock(b).toList();
+      for (var i = 0; i < spans.length; i++) {
+        if (covered(spans[i].start, spans[i].end)) {
+          field(b);
+          continue;
+        }
+        final (list, item) = items[i];
+        final k = list.items.indexOf(item);
+        final last = i == spans.length - 1;
+        final sameList = !last && identical(items[i + 1].$1, list);
+        final nextTask = sameList && items[i + 1].$2.task != null;
+        units.add(
+          MdUnit(
+            block: b,
+            first: blockUnit[b] == units.length,
+            node: MdList(
+              ordered: list.ordered,
+              start: list.start,
+              items: [item],
+            ),
+            firstItem: k,
+            live: mine[i],
+            gap: !sameList ? kBlockGap : (nextTask ? 0 : 4),
+            widestNumber: list.ordered
+                ? list.start + list.items.length - 1
+                : null,
+          ),
+        );
+      }
+      continue;
+    }
+    final unit = layout.unitsOfBlock(b).firstOrNull;
+    if (covered(block.start, block.end) ||
+        (active != null &&
+            !active.pending &&
+            block.start == block.end &&
+            block.start == active.start)) {
+      field(b);
+      continue;
+    }
+    if (block.nodes.isEmpty) {
+      units.add(
+        MdUnit(
+          block: b,
+          first: true,
+          live: unit,
+          special: MdUnitSpecial.definition,
+        ),
+      );
+      continue;
+    }
+    var first = true;
+    for (final node in block.nodes) {
+      if (node is MdList && node.items.length > kListSplitAt) {
+        for (var i = 0; i < node.items.length; i += kListSlice) {
+          final end = (i + kListSlice).clamp(0, node.items.length);
+          units.add(
+            MdUnit(
+              block: b,
+              first: first,
+              firstItem: i,
+              live: unit,
+              node: MdList(
+                ordered: node.ordered,
+                start: node.start,
+                items: node.items.sublist(i, end),
+              ),
+            ),
+          );
+          first = false;
+        }
+      } else {
+        units.add(MdUnit(block: b, first: first, node: node, live: unit));
+        first = false;
+      }
+    }
+  }
+  if (active != null && !fieldPlaced) {
+    // A new block at the end (or the empty document's first one).
+    units.add(
+      MdUnit(
+        block: doc.blocks.length,
+        first: false,
+        special: MdUnitSpecial.field,
+      ),
+    );
+  } else if (active == null) {
+    units.add(
+      MdUnit(
+        block: doc.blocks.length,
+        first: false,
+        special: doc.blocks.isEmpty
+            ? MdUnitSpecial.placeholder
+            : MdUnitSpecial.addEnd,
+      ),
+    );
+  }
+  if (doc.footnotes.isNotEmpty) {
+    blockUnit.add(units.length);
+    units.add(const MdUnit(block: -1, first: true, footnotes: true));
+  }
+  return (units: units, blockUnit: blockUnit);
+}
+
 /// Scroll position helper of one [MdView].
 class MdViewController {
   MdViewController() : scroll = ScrollController();
@@ -109,7 +312,10 @@ class MdViewController {
     for (final l in text.split('\n')) {
       lines += (l.length / perLine).ceil().clamp(1, 1 << 20);
     }
-    if (unit.node is MdList) {
+    final live = unit.live;
+    if (live?.item != null) {
+      lines = 1 + ((live!.end - live.start) / perLine).ceil();
+    } else if (unit.node is MdList) {
       lines = (unit.node! as MdList).items.length + lines ~/ 4;
     }
     return lines * 25.6 + kBlockGap;
@@ -242,7 +448,11 @@ class MdView extends StatefulWidget {
     this.highlightBlock,
     this.listKey = MarkdownKeys.view,
     this.onStartEditing,
+    this.live,
   });
+
+  /// Live block editing (08-markdown 24); null draws only.
+  final MdLiveView? live;
 
   final MdDocument document;
   final MdViewController controller;
@@ -268,15 +478,27 @@ class _MdViewState extends State<MdView> {
   @override
   void initState() {
     super.initState();
-    _units = unitsOf(widget.document);
+    _units = _compute();
     _sync();
+  }
+
+  ({List<MdUnit> units, List<int> blockUnit}) _compute() {
+    final live = widget.live;
+    if (live == null) return unitsOf(widget.document);
+    return liveUnitsOf(live.layout, live.active);
   }
 
   @override
   void didUpdateWidget(MdView old) {
     super.didUpdateWidget(old);
-    if (!identical(old.document, widget.document)) {
-      _units = unitsOf(widget.document);
+    final live = widget.live;
+    final was = old.live;
+    if (!identical(old.document, widget.document) ||
+        (live == null) != (was == null) ||
+        (live != null &&
+            (!identical(live.layout, was!.layout) ||
+                live.active != was.active))) {
+      _units = _compute();
     }
     _sync();
   }
@@ -305,7 +527,7 @@ class _MdViewState extends State<MdView> {
             100,
             kReadingWidth,
           );
-          if (units.isEmpty) {
+          if (units.isEmpty && widget.live == null) {
             return Center(
               key: widget.listKey,
               child: Padding(
@@ -354,7 +576,7 @@ class _MdViewState extends State<MdView> {
                     constraints.maxWidth,
                   ),
                   child: Padding(
-                    padding: EdgeInsets.fromLTRB(pad, 0, pad, kBlockGap),
+                    padding: EdgeInsets.fromLTRB(pad, 0, pad, units[u].gap),
                     child: _UnitSlot(
                       controller: widget.controller,
                       index: u,
@@ -371,14 +593,75 @@ class _MdViewState extends State<MdView> {
   }
 
   Widget _unit(MdUnit unit, MdStyle style) {
+    final live = widget.live;
+    switch (unit.special) {
+      case MdUnitSpecial.field:
+        Widget field = _KeepAlive(
+          child: SelectionContainer.disabled(child: live!.field(context)),
+        );
+        if (unit.first && unit.block >= 0) {
+          field = KeyedSubtree(
+            key: MarkdownKeys.block(unit.block),
+            child: field,
+          );
+        }
+        return field;
+      case MdUnitSpecial.addEnd:
+      case MdUnitSpecial.placeholder:
+        final placeholder = unit.special == MdUnitSpecial.placeholder;
+        return _LiveRow(
+          key: placeholder
+              ? MarkdownKeys.livePlaceholder
+              : MarkdownKeys.liveAddEnd,
+          onTap: live!.onAddEnd,
+          minHeight: placeholder ? 160 : 120,
+          icon: placeholder ? null : AppIconKind.add,
+          text: placeholder ? MdStrings.livePlaceholder : MdStrings.liveAddEnd,
+          style: style,
+        );
+      case MdUnitSpecial.definition:
+        final u = unit.live!;
+        final src = live!.layout.doc.source.substring(u.start, u.end);
+        final label = src.split('\n').first.trim();
+        return _Tappable(
+          unit: u,
+          live: live,
+          child: Container(
+            key: MarkdownKeys.liveDefinition(unit.block),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              border: Border.all(color: style.tokens.hairline),
+              borderRadius: BorderRadius.circular(style.tokens.radiusSmall),
+            ),
+            child: Text(
+              '${label.startsWith('[^') ? MdStrings.liveDefinition : MdStrings.liveLinkDefinition}  $label',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: style.small.copyWith(
+                fontFamily: kMonoFamily,
+                fontFamilyFallback: kMonoFallback,
+              ),
+            ),
+          ),
+        );
+      case MdUnitSpecial.none:
+        break;
+    }
     Widget child;
     if (unit.footnotes) {
       child = MdFootnotesView(footnotes: widget.document.footnotes);
     } else {
       final node = unit.node!;
       child = node is MdList
-          ? MdListView(list: node, firstItem: unit.firstItem)
+          ? MdListView(
+              list: node,
+              firstItem: unit.firstItem,
+              widestNumber: unit.widestNumber,
+            )
           : MdNodeView(node: node);
+    }
+    if (live != null && unit.live != null) {
+      child = _Tappable(unit: unit.live!, live: live, child: child);
     }
     if (unit.block >= 0 && unit.block == widget.highlightBlock) {
       child = AnimatedContainer(
@@ -444,4 +727,106 @@ class _UnitSlotState extends State<_UnitSlot> {
 
   @override
   Widget build(BuildContext context) => widget.child;
+}
+
+/// Keeps the open field alive while it is scrolled out of the list's cache (its
+/// controller and focus live in the screen; 24.15 D′12).
+class _KeepAlive extends StatefulWidget {
+  const _KeepAlive({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeepAlive> createState() => _KeepAliveState();
+}
+
+class _KeepAliveState extends State<_KeepAlive>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+}
+
+/// A drawn unit that opens its live field on a tap (finger or pen). Taps on task
+/// boxes, links, buttons inside win (they are deeper in the gesture arena).
+class _Tappable extends StatelessWidget {
+  const _Tappable({
+    required this.unit,
+    required this.live,
+    required this.child,
+  });
+
+  final LiveUnit unit;
+  final MdLiveView live;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    onPointerDown: (_) => live.onPointerDownUnit?.call(unit),
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapUp: (d) => live.onTapUnit(unit, d.globalPosition, context),
+      child: child,
+    ),
+  );
+}
+
+/// '눌러서 이어 쓰기' / '여기에 쓰세요'.
+class _LiveRow extends StatelessWidget {
+  const _LiveRow({
+    super.key,
+    required this.onTap,
+    required this.minHeight,
+    required this.text,
+    required this.style,
+    this.icon,
+  });
+
+  final VoidCallback onTap;
+  final double minHeight;
+  final String text;
+  final MdStyle style;
+  final AppIconKind? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = style.tokens;
+    return Semantics(
+      button: true,
+      label: text,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: minHeight),
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (icon != null) ...[
+                    AppIcon(icon!, size: 18, color: t.textTertiary),
+                    const SizedBox(width: 8),
+                  ],
+                  Flexible(
+                    child: Text(
+                      text,
+                      style: style.body.copyWith(color: t.textTertiary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

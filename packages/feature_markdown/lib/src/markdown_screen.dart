@@ -1,8 +1,11 @@
-// The MD 문서 screen (08-markdown 8, C217M-14; B-6 … B-12). One button toggles 보기
-// (rendered) ↔ 편집 (source); on a wide landscape tablet 나란히 shows both. All state of
-// the open document lives in MarkdownController (screen/markdown_controller.dart).
+// The MD 문서 screen (08-markdown 8, 24; C217M-14, C218M-01). 보기 is the rendered view
+// and edits in place — a tap opens that block's markdown in a field (live/); one button
+// toggles 보기 ↔ 원문 (the whole source); on a wide landscape tablet 나란히 shows the source
+// and a preview. All state of the open document lives in MarkdownController
+// (screen/markdown_controller.dart); the live field writes into its buffer.
 import 'dart:async';
 
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -11,10 +14,15 @@ import 'package:ui_kit/ui_kit.dart';
 
 import 'edit/line_endings.dart';
 import 'edit/md_editor.dart';
+import 'live/live_edit.dart';
+import 'live/live_editor.dart';
+import 'live/live_field.dart';
+import 'live/live_units.dart';
 import 'markdown_keys.dart';
 import 'parse/md_document.dart';
 import 'parse/md_model.dart';
 import 'render/md_link.dart';
+import 'render/md_style.dart';
 import 'render/md_view.dart';
 import 'screen/banners.dart';
 import 'screen/markdown_controller.dart';
@@ -67,7 +75,8 @@ class MarkdownScreen extends ConsumerStatefulWidget {
   /// highlights it (08-markdown 8.8). null = top of the document.
   final String? initialQuery;
 
-  /// Open in 편집 (a document just made with '새 MD 문서'); otherwise 보기.
+  /// Start typing right away (a document just made with '새 MD 문서'): 보기 opens with
+  /// the field of a new block at the end (08-markdown 24.4, C218M-01).
   final bool initialEdit;
 
   /// Back: called after the screen has saved and flushed (or the user chose to leave
@@ -95,10 +104,25 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
   final MdViewController _view = MdViewController();
   final MdViewController _preview = MdViewController();
   final FocusNode _editorFocus = FocusNode(debugLabel: 'md editor');
-  final GlobalKey _editorKey = GlobalKey(debugLabel: 'md editor pane');
+  late final LiveEditor _live;
+
+  /// The edit units of [_parsed] (made once per parse).
+  LiveLayout? _layoutMemo;
+
+  /// After a block closed on a large document (parsed off the main isolate): its range
+  /// and text, drawn in place until the new parse arrives.
+  ({LiveRange range, String text, LiveLayout layout})? _ghost;
+
+  /// Runs once the parse matches the buffer (opening the next block).
+  VoidCallback? _afterParse;
+
+  /// The unit under the last pointer down (a link sheet's [이 블록 고치기]).
+  LiveUnit? _pointerUnit;
+
+  /// initialEdit: open a field once the document is loaded and parsed.
+  bool _startTyping = false;
 
   _Mode _mode = _Mode.view;
-  bool _editorMounted = false;
   bool _splitSetting = false;
   bool _wide = false;
 
@@ -135,10 +159,9 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
       flushStore: store.flush,
       onSaved: _onSaved,
     )..addListener(_onController);
-    if (widget.initialEdit) {
-      _mode = _Mode.edit;
-      _editorMounted = true;
-    }
+    _c.countFieldHistory = false;
+    _live = LiveEditor(_c)..addListener(_onLive);
+    _startTyping = widget.initialEdit;
     _life = AppLifecycleListener(
       onHide: _onBackground,
       onPause: _onBackground,
@@ -173,6 +196,9 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
     _highlightTimer?.cancel();
     _receivingTimer?.cancel();
     _c.removeListener(_onController);
+    _live
+      ..removeListener(_onLive)
+      ..dispose();
     // Save what is left, then let the controller go. When that save fails too (the route
     // was replaced or popped some other way than [←] / back), the text is kept on this
     // device like on app pause — it is never dropped silently.
@@ -207,9 +233,16 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
       }
       _ensureParsed(immediate: true);
       _checkUnsaved();
+    } else if (_live.isOpen) {
+      // Typing in a live block never parses (24.15 D′2): it is parsed when it closes.
     } else if (_mode != _Mode.edit) {
-      // 보기 draws the buffer at once; 나란히 previews it after 200 ms. 편집 never parses.
+      // 보기 draws the buffer at once; 나란히 previews it after 200 ms. 원문 never parses.
       _ensureParsed(immediate: _mode == _Mode.view);
+    }
+    if (_live.isOpen && !_c.canEdit) {
+      // Trashed elsewhere, …: the field goes (its text is in the buffer already).
+      _live.close(tidy: false);
+      _ensureParsed(immediate: true);
     }
     if (_mode != _Mode.view && !_c.canEdit && doc != null) {
       // The document became read-only (trashed elsewhere, …): back to 보기.
@@ -227,7 +260,28 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
       _receivingTimer = null;
       _receivingLong = false;
     }
-    setState(() {});
+    // While a block is open every keystroke notifies: rebuild (and lay out the view
+    // again) only when something the screen shows changed (24.9).
+    final chrome = Object.hash(
+      _c.state,
+      _c.failure,
+      _c.conflictCopyId,
+      _c.canEdit,
+      _c.loaded,
+      _c.missing,
+      _c.loadError,
+      doc,
+      receiving,
+    );
+    if (!_live.isOpen || chrome != _chrome) setState(() {});
+    _chrome = chrome;
+    if (_startTyping) _maybeStartTyping();
+  }
+
+  int _chrome = 0;
+
+  void _onLive() {
+    if (mounted) setState(() {});
   }
 
   void _checkUnsaved() {
@@ -307,7 +361,261 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
       }
     }
     _maybeLand();
-    if (_c.text.text != src && _mode != _Mode.edit) _ensureParsed();
+    if (_parsed.source == _c.text.text) {
+      _ghost = null;
+      final next = _afterParse;
+      _afterParse = null;
+      next?.call();
+      _maybeStartTyping();
+    } else if (_mode != _Mode.edit && !_live.isOpen) {
+      _ensureParsed();
+    }
+  }
+
+  // --- live blocks (08-markdown 24) -------------------------------------------
+
+  LiveLayout get _layout {
+    final m = _layoutMemo;
+    if (m != null && identical(m.doc, _parsed)) return m;
+    return _layoutMemo = LiveLayout.of(_parsed);
+  }
+
+  bool get _liveOn => _mode == _Mode.view && _c.canEdit && _c.doc != null;
+
+  void _maybeStartTyping() {
+    if (!_startTyping || !_c.loaded) return;
+    if (_c.doc == null || _c.doc!.readOnlyReason != null) {
+      if (_c.doc?.readOnlyReason != MarkdownReadOnlyReason.bodyMissing) {
+        _startTyping = false;
+      }
+      return;
+    }
+    if (!_c.canEdit || _parsed.source != _c.text.text) return;
+    _startTyping = false;
+    if (_mode == _Mode.view) _openEnd();
+  }
+
+  /// Runs [f] once the parse matches the buffer (now when it does).
+  void _whenFresh(VoidCallback f) {
+    _ensureParsed(immediate: true);
+    if (_parsed.source == _c.text.text) {
+      f();
+    } else {
+      _afterParse = f;
+    }
+  }
+
+  void _focusField() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _live.isOpen) _live.focus.requestFocus();
+    });
+  }
+
+  /// Opens [unit] of the current parse with the caret at [caret] (of the unit's text).
+  bool _openUnit(LiveUnit unit, int? caret) {
+    if (!_liveOn) return false;
+    if (unit.end - unit.start > kMaxLiveUnitChars) {
+      _live.focus.unfocus();
+      _say(MdStrings.liveTooLong);
+      _c.text.selection = TextSelection.collapsed(
+        offset: (unit.start + (caret ?? 0)).clamp(0, _c.text.text.length),
+      );
+      _toEdit(keepSelection: true);
+      return false;
+    }
+    if (!_live.open(_layout, unit, caret: caret)) return false;
+    _focusField();
+    return true;
+  }
+
+  /// Opens the unit holding buffer offset [offset] (the parse must match the buffer).
+  bool _openAt(int offset, {bool atEnd = false}) {
+    final layout = _layout;
+    final i = layout.indexAt(offset);
+    if (i < 0) return _openEnd();
+    final u = layout.units[i];
+    return _openUnit(
+      u,
+      atEnd ? null : (offset - u.start).clamp(0, u.end - u.start),
+    );
+  }
+
+  bool _openEnd() {
+    if (!_liveOn) return false;
+    if (!_live.openAtEnd(_layout)) return false;
+    _focusField();
+    return true;
+  }
+
+  /// Closes the open block and re-parses (a large document keeps drawing the closed
+  /// block's text until its parse arrives).
+  void _commit({bool keepFocus = false, bool tidy = true}) {
+    final s = _live.session;
+    if (s == null) return;
+    _live.close(keepFocus: keepFocus, tidy: tidy);
+    if (_c.text.text.length > kParseOffThreadChars) {
+      _ghost = (range: s.range, text: _live.field.text, layout: s.layout);
+    }
+    _ensureParsed(immediate: true);
+  }
+
+  void _commitThen(VoidCallback next) {
+    _commit(keepFocus: true);
+    _whenFresh(() {
+      next();
+      if (!_live.isOpen) _live.focus.unfocus();
+    });
+  }
+
+  void _onTapUnit(LiveUnit unit, Offset global, BuildContext unitContext) {
+    if (!_liveOn) return;
+    final s = _live.session;
+    final source = (s?.layout ?? _layout).doc.source;
+    final caret = _caretFor(source, unit, global, unitContext);
+    if (s != null) {
+      final mapped = s.mapOffset(unit.start + caret, _live.field.text);
+      if (mapped == null) return;
+      _commitThen(() => _openAt(mapped));
+      return;
+    }
+    if (_parsed.source != _c.text.text) return;
+    _openUnit(unit, caret);
+  }
+
+  /// Where in [unit]'s source a tap at [global] lands: the drawn paragraph under it and
+  /// the character there, walked back to the source (a guess — it only places the caret).
+  int _caretFor(String source, LiveUnit unit, Offset global, BuildContext ctx) {
+    final src = source.substring(unit.start, unit.end);
+    final box = ctx.findRenderObject();
+    if (box is! RenderBox || !box.attached) return src.length;
+    final result = BoxHitTestResult();
+    box.hitTest(result, position: box.globalToLocal(global));
+    for (final e in result.path) {
+      final t = e.target;
+      if (t is RenderParagraph) {
+        final pos = t.getPositionForOffset(t.globalToLocal(global));
+        final plain = t.text.toPlainText(includeSemanticsLabels: false);
+        return sourceOffsetForPlain(src, plain, pos.offset);
+      }
+    }
+    return src.length;
+  }
+
+  void _onAddEnd() {
+    if (!_liveOn) return;
+    if (_live.isOpen) {
+      _commitThen(_openEnd);
+    } else if (_parsed.source == _c.text.text) {
+      _openEnd();
+    }
+  }
+
+  void _onBackspaceAtStart() {
+    final to = _live.backspaceAtStart();
+    if (to == null) return;
+    // The block went (or cannot be joined): the caret goes to the end of the one before.
+    if (_c.text.text.length > kParseOffThreadChars) _live.focus.unfocus();
+    _whenFresh(() {
+      _openAt(to, atEnd: true);
+      if (!_live.isOpen) _live.focus.unfocus();
+    });
+  }
+
+  void _onMove(bool up) {
+    final s = _live.session;
+    if (s == null) return;
+    LiveUnit? target;
+    for (final u in s.layout.units) {
+      if (up) {
+        if (u.end <= s.range.start && u != s.unit) target = u;
+      } else if (u.start >= s.range.end && !s.range.pending) {
+        target = u;
+        break;
+      }
+    }
+    if (target == null) {
+      if (!up && !s.range.pending) _commitThen(_openEnd);
+      return;
+    }
+    final mapped = s.mapOffset(
+      up ? target.end : target.start,
+      _live.field.text,
+    );
+    if (mapped == null) return;
+    _commitThen(() => _openAt(mapped, atEnd: up));
+  }
+
+  /// Undo / redo while 보기 can edit: the open block closes, the history value goes in,
+  /// and the block holding the change opens with the caret at its end (24.6).
+  void _liveHistory({required bool redo}) {
+    final before = _c.text.text;
+    final had = _live.isOpen;
+    if (had) _commit(keepFocus: true, tidy: false);
+    if (redo) {
+      _c.redoStep();
+    } else {
+      _c.undoStep();
+    }
+    final after = _c.text.text;
+    if (after == before) {
+      if (had) {
+        final at = _c.text.selection.isValid
+            ? _c.text.selection.extentOffset
+            : 0;
+        _whenFresh(() {
+          _openAt(at);
+          if (!_live.isOpen) _live.focus.unfocus();
+        });
+      }
+      return;
+    }
+    final minLen = before.length < after.length ? before.length : after.length;
+    var p = 0;
+    while (p < minLen && before.codeUnitAt(p) == after.codeUnitAt(p)) {
+      p++;
+    }
+    var q = 0;
+    while (q < minLen - p &&
+        before.codeUnitAt(before.length - 1 - q) ==
+            after.codeUnitAt(after.length - 1 - q)) {
+      q++;
+    }
+    final end = after.length - q;
+    _whenFresh(() {
+      _openAt(end < p ? p : end);
+      if (!_live.isOpen) _live.focus.unfocus();
+    });
+  }
+
+  void _undo() =>
+      _mode == _Mode.view ? _liveHistory(redo: false) : _c.undoStep();
+  void _redo() =>
+      _mode == _Mode.view ? _liveHistory(redo: true) : _c.redoStep();
+
+  Widget _fieldOrGhost(BuildContext context) {
+    final g = _ghost;
+    if (!_live.isOpen && g != null) {
+      final s = MdStyle.of(context);
+      return Container(
+        decoration: BoxDecoration(
+          color: s.tokens.card,
+          borderRadius: BorderRadius.circular(s.tokens.radiusSmall),
+          border: Border.all(color: s.tokens.hairline, width: 1.5),
+        ),
+        padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+        child: Text(g.text, style: s.body),
+      );
+    }
+    return LiveBlockField(
+      editor: _live,
+      actions: LiveFieldActions(
+        onBackspaceAtStart: _onBackspaceAtStart,
+        onMove: _onMove,
+        onCommit: _commit,
+        onUndo: _undo,
+        onRedo: _redo,
+      ),
+    );
   }
 
   // --- search landing -----------------------------------------------------------
@@ -340,7 +648,10 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
     // The block with the cursor comes to the top of the view.
     final sel = _c.text.selection;
     _editorFocus.unfocus();
-    setState(() => _mode = _Mode.view);
+    setState(() {
+      _mode = _Mode.view;
+      _c.countFieldHistory = false;
+    });
     _ensureParsed(immediate: true);
     unawaited(_c.flush(store: true));
     if (sel.isValid) {
@@ -352,17 +663,25 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
     }
   }
 
-  void _toEdit() {
+  void _toEdit({bool keepSelection = false}) {
     if (!_c.canEdit) return;
+    if (_live.isOpen) {
+      // The open block closes; the source editor's caret is where the field's was.
+      _commit();
+      keepSelection = true;
+    }
     // The block at the top of the view gets the cursor (the field scrolls to it).
-    final top = _mode == _Mode.view ? _view.firstVisibleBlock() : null;
+    final top = _mode == _Mode.view && !keepSelection
+        ? _view.firstVisibleBlock()
+        : null;
     if (top != null && top > 0 && top < _parsed.blocks.length) {
       final at = _parsed.blocks[top].start.clamp(0, _c.text.text.length);
       _c.text.selection = TextSelection.collapsed(offset: at);
     }
+    unawaited(_c.flush(store: true));
     setState(() {
-      _editorMounted = true;
       _mode = _wide && _splitSetting ? _Mode.split : _Mode.edit;
+      _c.countFieldHistory = true;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _mode != _Mode.view) _editorFocus.requestFocus();
@@ -373,7 +692,7 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
     setState(() {
       _splitSetting = on;
       _mode = on ? _Mode.split : _Mode.edit;
-      _editorMounted = true;
+      _c.countFieldHistory = true;
     });
     if (on) _ensureParsed(immediate: true);
     unawaited(
@@ -489,7 +808,11 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
   }
 
   void _onBack() {
-    if (_mode != _Mode.view) {
+    if (_live.isOpen) {
+      // ② an open block closes first (24.8).
+      _commit();
+      unawaited(_c.flush(store: true));
+    } else if (_mode != _Mode.view) {
       unawaited(_toView());
     } else {
       unawaited(_leave());
@@ -510,11 +833,18 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
       }
       return;
     }
+    final unit = _pointerUnit;
+    final canOpen =
+        _liveOn &&
+        !_live.isOpen &&
+        unit != null &&
+        _parsed.source == _c.text.text;
     unawaited(
       showLinkSheet(
         context,
         href: href,
         openLink: ref.read(markdownOpenLinkProvider),
+        onEdit: canOpen ? () => _openUnit(unit, null) : null,
       ),
     );
   }
@@ -524,15 +854,29 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
   void _onFootnote(String label) =>
       unawaited(_viewFor().revealBlock(_parsed.blocks.length));
 
-  bool _canToggle(int i) =>
-      _c.canEdit &&
-      _parsed.source == _c.text.text &&
-      i < _parsed.taskOffsets.length &&
-      _parsed.taskOffsets[i] != null;
+  /// The view's document: while a block is open, the parse it opened on.
+  MdDocument get _shown => _live.session?.doc ?? _ghost?.layout.doc ?? _parsed;
+
+  /// Buffer offset of task box [i] of the shown parse (null: cannot toggle now).
+  int? _taskOffset(int i) {
+    final doc = _shown;
+    if (!_c.canEdit || i >= doc.taskOffsets.length) return null;
+    final off = doc.taskOffsets[i];
+    if (off == null) return null;
+    final s = _live.session;
+    if (s != null) return s.mapOffset(off, _live.field.text);
+    if (_ghost != null || doc.source != _c.text.text) return null;
+    return off;
+  }
+
+  bool _canToggle(int i) => _taskOffset(i) != null;
 
   Future<void> _toggleTask(int i) async {
-    if (!_canToggle(i)) return;
-    final offset = _parsed.taskOffsets[i]!;
+    final offset = _taskOffset(i);
+    if (offset == null) return;
+    // A box of another block while one is open: that block closes first (the box's
+    // offset was mapped through it — 24.15 D′2, D′7).
+    if (_live.isOpen) _commit();
     final before = _c.text.text;
     final changed = _c.toggleTaskAt(offset);
     // The text right after the toggle: [되돌리기] flips the box back only while the
@@ -662,6 +1006,7 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
     final base = Hlc.tryParse(_unsaved?['base'] as String?);
     _c.codec = LineEndingCodec.of(raw);
     final text = _c.codec.decode(raw);
+    if (_live.isOpen) _commit(tidy: false);
     setState(() => _unsaved = null);
     await _c.restoreText(text, base: base);
     _ensureParsed(immediate: true);
@@ -731,7 +1076,7 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
     final theme = Theme.of(context);
     final doc = _c.doc;
     final title = doc?.note.title ?? '';
-    final editing = mode != _Mode.view;
+    final editing = mode != _Mode.view || (_c.canEdit && _c.doc != null);
     final canEdit = _c.canEdit;
     Widget modeButton() {
       final (AppIconKind icon, String label, String tip) = switch (mode) {
@@ -821,7 +1166,9 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
               ),
               if (doc != null) ...[
                 if (editing && !narrow) ..._undoButtons(t),
-                if (editing || _c.state != MdSaveState.saved)
+                if (mode != _Mode.view ||
+                    _live.isOpen ||
+                    _c.state != MdSaveState.saved)
                   _saveState(context, narrow),
                 if (_wide && mode == _Mode.edit)
                   IconButton(
@@ -850,13 +1197,13 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
           IconButton(
             key: MarkdownKeys.undo,
             tooltip: MdStrings.undo,
-            onPressed: v.canUndo ? _c.undoStep : null,
+            onPressed: v.canUndo ? _undo : null,
             icon: const AppIcon(AppIconKind.undo),
           ),
           IconButton(
             key: MarkdownKeys.redo,
             tooltip: MdStrings.redo,
-            onPressed: v.canRedo ? _c.redoStep : null,
+            onPressed: v.canRedo ? _redo : null,
             icon: const AppIcon(AppIconKind.redo),
           ),
         ],
@@ -1056,29 +1403,33 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
     }
     if (!_c.loaded) return const SizedBox.shrink();
     if (_c.doc == null) return _notMarkdown(context);
-    final editor = _editorMounted
-        ? KeyedSubtree(key: _editorKey, child: _editorPane(narrow))
-        : null;
+    // The source editor is mounted only in 원문 / 나란히 (24.8, C218M-09): kept Offstage
+    // it laid the whole text out again on every keystroke of a live block, and its
+    // loosely sized Stack once collapsed 보기 to 0 px (0af6469). Its caret lives in the
+    // controller's buffer.
+    final editor = mode == _Mode.view ? null : _editorPane(narrow);
     switch (mode) {
       case _Mode.view:
-        // StackFit.expand: the Offstage editor (kept mounted so its cursor, scroll and
-        // IME state survive 보기) is the Stack's only non-positioned child, and an
-        // Offstage reports the smallest size its constraints allow. With the default
-        // loose fit and the Column's loose cross-axis width that is zero, so the Stack
-        // — and the Positioned.fill 보기 in it — was 0 px wide after 편집 → 보기 and
-        // the text broke one character per line (owner report).
-        return Stack(
-          fit: StackFit.expand,
+        final live = _liveOn;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (editor != null)
-              Offstage(child: TickerMode(enabled: false, child: editor)),
-            Positioned.fill(
+            Expanded(
               child: _mdView(
                 _view,
                 MarkdownKeys.view,
-                onStartEditing: _c.canEdit ? _toEdit : null,
+                live: live ? _liveView() : null,
               ),
             ),
+            if (live && _live.isOpen)
+              LiveToolbar(
+                editor: _live,
+                undo: narrow ? _c.undo : null,
+                onUndo: _undo,
+                onRedo: _redo,
+                onJoin: _onBackspaceAtStart,
+                onDone: _commit,
+              ),
           ],
         );
       case _Mode.edit:
@@ -1101,21 +1452,31 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
     }
   }
 
-  Widget _mdView(
-    MdViewController controller,
-    Key key, {
-    VoidCallback? onStartEditing,
-  }) => MdView(
-    document: _parsed,
-    onStartEditing: onStartEditing,
-    controller: controller,
-    listKey: key,
-    highlightBlock: _highlight,
-    onLink: _onLink,
-    onFootnote: _onFootnote,
-    onToggleTask: (i) => unawaited(_toggleTask(i)),
-    canToggleTask: _canToggle,
-  );
+  MdLiveView _liveView() {
+    final s = _live.session;
+    final g = _ghost;
+    return MdLiveView(
+      layout: s?.layout ?? g?.layout ?? _layout,
+      active: s?.range ?? g?.range,
+      field: _fieldOrGhost,
+      onTapUnit: _onTapUnit,
+      onAddEnd: _onAddEnd,
+      onPointerDownUnit: (u) => _pointerUnit = u,
+    );
+  }
+
+  Widget _mdView(MdViewController controller, Key key, {MdLiveView? live}) =>
+      MdView(
+        document: live == null ? _parsed : live.layout.doc,
+        live: live,
+        controller: controller,
+        listKey: key,
+        highlightBlock: _highlight,
+        onLink: _onLink,
+        onFootnote: _onFootnote,
+        onToggleTask: (i) => unawaited(_toggleTask(i)),
+        canToggleTask: _canToggle,
+      );
 
   Widget _editorPane(bool narrow) => Column(
     children: [

@@ -24,6 +24,7 @@ Future<void> showLinkSheet(
   BuildContext context, {
   required String href,
   required MarkdownOpenLinkAction? openLink,
+  VoidCallback? onEdit,
 }) {
   final uri = openLink == null ? null : openableUri(href);
   final messenger = ScaffoldMessenger.maybeOf(context);
@@ -75,6 +76,16 @@ Future<void> showLinkSheet(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
+                  if (onEdit != null)
+                    TextButton.icon(
+                      key: MarkdownKeys.linkSheetEdit,
+                      icon: const AppIcon(AppIconKind.editSource, size: 18),
+                      label: const Text(MdStrings.linkEditBlock),
+                      onPressed: () {
+                        Navigator.of(sheetContext).pop();
+                        onEdit();
+                      },
+                    ),
                   TextButton(
                     key: MarkdownKeys.linkSheetCancel,
                     onPressed: () => Navigator.of(sheetContext).pop(),

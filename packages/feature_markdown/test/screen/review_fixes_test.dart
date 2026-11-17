@@ -97,7 +97,7 @@ void main() {
       await h.pump(
         tester,
         id,
-        initialEdit: true,
+        source: true,
         overrides: [markdownRepositoryProvider.overrideWithValue(repo)],
       );
       repo.fail = true;
@@ -140,7 +140,7 @@ void main() {
       await h.pump(
         tester,
         id,
-        initialEdit: true,
+        source: true,
         overrides: [markdownRepositoryProvider.overrideWithValue(repo)],
       );
       repo.fail = true;
@@ -188,7 +188,7 @@ void main() {
     await h.pump(
       tester,
       id,
-      initialEdit: true,
+      source: true,
       overrides: [markdownRepositoryProvider.overrideWithValue(repo)],
     );
     repo.fail = true;
@@ -265,7 +265,7 @@ void main() {
       '(review B4)', (tester) async {
     final h = await MdHarness.create(tester);
     final id = await h.doc(tester, '원문');
-    await h.pump(tester, id, initialEdit: true, canOpenMarkdown: true);
+    await h.pump(tester, id, source: true, canOpenMarkdown: true);
     await _type(tester, '내가 고친 글');
     await tester.runAsync(
       () => FakeMarkdownHooks.remoteText(h.store, id, '다른 기기 글'),
@@ -282,7 +282,7 @@ void main() {
   testWidgets('no onOpenMarkdown: no [사본 열기]', (tester) async {
     final h = await MdHarness.create(tester);
     final id = await h.doc(tester, '원문');
-    await h.pump(tester, id, initialEdit: true);
+    await h.pump(tester, id, source: true);
     await _type(tester, '내가 고친 글');
     await tester.runAsync(
       () => FakeMarkdownHooks.remoteText(h.store, id, '다른 기기 글'),
@@ -297,7 +297,7 @@ void main() {
     final h = await MdHarness.create(tester);
     final text = _paragraphs(200);
     final id = await h.doc(tester, text);
-    await h.pump(tester, id, initialEdit: true);
+    await h.pump(tester, id, source: true);
     final field = tester.widget<TextField>(find.byKey(MarkdownKeys.editor));
     final at = text.indexOf('문단 150 ');
     field.controller!.selection = TextSelection.collapsed(offset: at + 3);
@@ -323,7 +323,7 @@ void main() {
     final h = await MdHarness.create(tester);
     final text = _paragraphs(200);
     final id = await h.doc(tester, text);
-    await h.pump(tester, id, initialEdit: true);
+    await h.pump(tester, id, source: true);
     final field = tester.widget<TextField>(find.byKey(MarkdownKeys.editor));
     field.controller!.selection = TextSelection.collapsed(
       offset: text.indexOf('문단 120 '),
@@ -386,7 +386,7 @@ void main() {
       '(review B11)', (tester) async {
     final h = await MdHarness.create(tester);
     final id = await h.doc(tester, '글');
-    await h.pump(tester, id, size: const Size(390, 844), initialEdit: true);
+    await h.pump(tester, id, size: const Size(390, 844), source: true);
     await settleMd(tester);
     final heading = find.byKey(MarkdownKeys.accessoryButton('heading'));
     expect(tester.getSize(heading).height, greaterThanOrEqualTo(48));
@@ -407,7 +407,7 @@ void main() {
   ) async {
     final h = await MdHarness.create(tester);
     final id = await h.doc(tester, '하나');
-    await h.pump(tester, id, initialEdit: true);
+    await h.pump(tester, id, source: true);
     await tester.tap(find.byKey(MarkdownKeys.editor));
     await settleMd(tester);
     await _type(tester, '하나 둘');
@@ -424,7 +424,7 @@ void main() {
 
   // --- owner review (final pass) ------------------------------------------------
 
-  testWidgets('phone: the 보기 ↔ 편집 button keeps its label (owner review)', (
+  testWidgets('phone: the 보기 ↔ 원문 button keeps its label (owner review)', (
     tester,
   ) async {
     final h = await MdHarness.create(tester);
@@ -433,7 +433,7 @@ void main() {
     await settleMd(tester);
     final mode = find.byKey(MarkdownKeys.mode);
     expect(
-      find.descendant(of: mode, matching: find.text('편집')),
+      find.descendant(of: mode, matching: find.text('원문')),
       findsOneWidget,
     );
     expect(tester.getSize(mode).height, greaterThanOrEqualTo(48));
@@ -494,16 +494,18 @@ void main() {
     );
   });
 
-  testWidgets('an empty document offers [편집하기] in 보기 (owner review)', (
+  testWidgets('an empty document offers \'여기에 쓰세요\' in 보기 (v2.18-md)', (
     tester,
   ) async {
     final h = await MdHarness.create(tester);
     final id = await h.doc(tester, '');
     await h.pump(tester, id);
     await settleMd(tester);
-    expect(find.text('아직 내용이 없어요'), findsOneWidget);
-    await tester.tap(find.byKey(MarkdownKeys.emptyEdit));
+    expect(find.byKey(MarkdownKeys.emptyEdit), findsNothing);
+    expect(find.text('여기에 쓰세요'), findsOneWidget);
+    await tester.tap(find.byKey(MarkdownKeys.livePlaceholder));
     await settleMd(tester);
-    expect(find.byKey(MarkdownKeys.editor), findsOneWidget);
+    expect(find.byKey(MarkdownKeys.liveField), findsOneWidget);
+    expect(find.byKey(MarkdownKeys.editor), findsNothing);
   });
 }

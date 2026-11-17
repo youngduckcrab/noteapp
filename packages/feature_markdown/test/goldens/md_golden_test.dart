@@ -47,9 +47,12 @@ void main() {
       tester,
       id,
       size: const Size(390, 844),
-      initialEdit: true,
+      source: true,
       textScale: 1.3,
     );
+    // The mode button's tooltip from opening 원문 goes away.
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(const Duration(milliseconds: 500));
     expect(tester.takeException(), isNull);
     await expectLater(
       find.byType(MaterialApp),

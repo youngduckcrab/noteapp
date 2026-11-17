@@ -40,6 +40,7 @@ final class MdHarness {
     AppStyle style = AppStyle.craft,
     Brightness brightness = Brightness.light,
     bool initialEdit = false,
+    bool source = false,
     String? query,
     List<Override> overrides = const [],
     double textScale = 1,
@@ -72,7 +73,12 @@ final class MdHarness {
         ),
       ),
     );
-    if (settle) await settleMd(tester);
+    if (settle || source) await settleMd(tester);
+    if (source) {
+      // 원문 (the whole-source editor; 보기 edits block by block since v2.18-md).
+      await tester.tap(find.byKey(MarkdownKeys.mode));
+      await settleMd(tester);
+    }
   }
 }
 
