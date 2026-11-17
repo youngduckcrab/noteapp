@@ -69,9 +69,19 @@ MdDocument parseMarkdown(String text) {
       continue;
     }
     final lines = text.substring(b.start, b.end).split('\n');
-    parsed.add(
-      md.BlockParser(lines.map(md.Line.new).toList(), doc).parseLines(),
-    );
+    try {
+      parsed.add(
+        md.BlockParser(lines.map(md.Line.new).toList(), doc).parseLines(),
+      );
+    } on Object catch (e) {
+      // markdown 7.3.1 gives up on a few inputs ('BlockParser.parseLines is not
+      // advancing', e.g. `[]()` + a table delimiter row): that block is drawn as its
+      // text instead of failing the whole document.
+      debugPrint('feature_markdown: block $b drawn as text: $e');
+      parsed.add([
+        md.Element('p', [md.Text(lines.join('\n'))]),
+      ]);
+    }
   }
   // Phase 2: inline content (Document._parseInlineContent, which is private).
   for (final nodes in parsed) {
