@@ -387,6 +387,35 @@ final class _Store implements NoteStore {
   HandwritingRepository get handwriting => _Handwriting();
   @override
   SearchIndex get search => _Search();
+  // v2.17-md (C217M-04)
+  @override
+  MarkdownRepository get markdown => _Markdown();
+}
+
+// ---- v2.17-md (m5-7/08-markdown 12.1) ------------------------------------------------
+
+final class _Markdown implements MarkdownRepository {
+  @override
+  Stream<MarkdownDoc?> watch(NoteId id) => _no();
+  @override
+  Future<MarkdownDoc?> get(NoteId id) => _no();
+  @override
+  Future<Note> create({
+    FolderId? folderId,
+    required String title,
+    String text = '',
+  }) => _no();
+  @override
+  Future<MarkdownSaveResult> saveText(
+    NoteId id,
+    String text, {
+    required Hlc? baseVersion,
+  }) => _no();
+  @override
+  Future<String> preview(
+    NoteId id, {
+    int maxChars = MarkdownLimits.previewChars,
+  }) => _no();
 }
 
 // ---- v2 interfaces (7.2.4, 7.2.5) -------------------------------------------------------
@@ -599,6 +628,8 @@ String _exhaustiveException(NoteCoreException e) => switch (e) {
   SessionClosedException() => 'f',
   AssetHashMismatchException() => 'g',
   NoteStoreOpenException() => 'h',
+  MarkdownTooLargeException() => 'i',
+  WrongNoteFormatException() => 'j',
 };
 
 String _exhaustiveSealed(
@@ -2663,5 +2694,76 @@ void main() {
       EmptyHandwritingRepository,
       EmptySearchIndex,
     ], hasLength(13));
+  });
+
+  test('v2.17-md MD 문서 surface (C217M-01, C217M-04)', () {
+    expect(kMarkdownNoteSchemaVersion, 100);
+    expect(kLaterNoteFormatSchemaVersion, 200);
+    expect(NoteFormat.values, [
+      NoteFormat.ink,
+      NoteFormat.markdown,
+      NoteFormat.unknown,
+    ]);
+    final NoteFormat Function(int) ofVersion = NoteFormat.ofSchemaVersion;
+    expect(
+      [
+        MarkdownLimits.maxTextBytes,
+        MarkdownLimits.maxEncodedBytes,
+        MarkdownLimits.maxImportFiles,
+        MarkdownLimits.previewChars,
+      ],
+      [400000, 900000, 20, 400],
+    );
+    final int Function(String) bytes = MarkdownLimits.utf8BytesOf;
+    final int Function(String) encoded = MarkdownLimits.encodedBytesOf;
+    final void Function(String) check = MarkdownLimits.check;
+    final String Function(String, DateTime) copyTitle =
+        MarkdownConflictCopy.titleFor;
+    final String Function(String, {int maxChars}) previewOf =
+        MarkdownPreviewText.of;
+    const MarkdownPreviewKey key = (noteId: 'n', updatedAt: 1);
+    expect(MarkdownReadOnlyReason.values, hasLength(3));
+    expect(MarkdownSaveOutcome.values, [
+      MarkdownSaveOutcome.saved,
+      MarkdownSaveOutcome.unchanged,
+      MarkdownSaveOutcome.savedWithConflictCopy,
+    ]);
+    const NoteCoreException tooLarge = MarkdownTooLargeException(
+      'm',
+      bytes: 1,
+      encodedBytes: 2,
+    );
+    const NoteCoreException wrong = WrongNoteFormatException('m');
+    final providers = <String, ProviderOrFamily>{
+      'markdownRepositoryProvider': markdownRepositoryProvider,
+      'markdownDocProvider': markdownDocProvider,
+      'markdownPreviewProvider': markdownPreviewProvider,
+    };
+    for (final e in providers.entries) {
+      expect(e.value.name, e.key, reason: '7.4.4');
+    }
+    final Provider<MarkdownRepository> repo = markdownRepositoryProvider;
+    final ProviderListenable<AsyncValue<MarkdownDoc?>> Function(NoteId) doc =
+        markdownDocProvider.call;
+    final ProviderListenable<AsyncValue<String>> Function(MarkdownPreviewKey)
+    preview = markdownPreviewProvider.call;
+    MarkdownRepository getter(NoteStore s) => s.markdown;
+    expect([
+      ofVersion,
+      bytes,
+      encoded,
+      check,
+      copyTitle,
+      previewOf,
+      key,
+      tooLarge,
+      wrong,
+      repo,
+      doc,
+      preview,
+      getter,
+      testing.FakeMarkdownHooks.removeBody,
+      testing.FakeMarkdownHooks.remoteText,
+    ], hasLength(15));
   });
 }

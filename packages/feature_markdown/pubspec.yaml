@@ -1,0 +1,30 @@
+# packages/feature_markdown/pubspec.yaml — (v2.17-md) created in the MD 문서 foundation
+# step (docs/plans/m5-7/08-markdown.md 7.1 and 15.1 F-8, contract 00-overview 7.9
+# C217M-09 / C217M-10). Versions are exact pins (ws check R9). Plugin free (R16).
+name: feature_markdown
+description: MD 문서 screen — rendered view and source editor of markdown documents (MD area).
+publish_to: none
+version: 0.0.1
+resolution: workspace
+environment:
+  sdk: ^3.13.0
+  flutter: 3.47.9
+dependencies:
+  flutter:
+    sdk: flutter
+  note_core: any
+  ink_engine: any
+  ui_kit: any
+  flutter_riverpod: 3.4.3
+  material_ui: 1.10.0
+  # dart-lang's pure-Dart CommonMark / GFM parser (08-markdown 2.5); used only behind
+  # lib/feature_markdown.dart, which the app imports deferred on the web (D9).
+  markdown: 7.3.1
+  meta: 1.19.0
+  collection: 1.19.1
+  # blockKey = SHA-1 prefix of a block's source (08-markdown 4.7).
+  crypto: 3.0.8
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  fake_async: 1.3.3

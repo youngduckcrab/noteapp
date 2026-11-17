@@ -95,6 +95,10 @@ final class DriftSessions {
     // migrated first (6.15); when that fails the note stays at its version and the
     // session is read-only (SessionEngine.isReadOnly) — not an open failure.
     var note = noteOf(row);
+    // (v2.17-md, C217M-05) the ink editor never opens an MD 문서 (it could add pages).
+    if (note.isMarkdown) {
+      throw WrongNoteFormatException('Note $noteId is an MD document');
+    }
     if (note.schemaVersion < kNoteSchemaVersion) {
       try {
         note = await s.noteMigrator.migrateIfNeeded(noteId);

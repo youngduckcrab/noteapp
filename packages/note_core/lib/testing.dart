@@ -8,6 +8,7 @@ library;
 
 import 'package:clock/clock.dart';
 
+import 'src/common/hlc.dart';
 import 'src/common/ids.dart';
 import 'src/dev/synthetic.dart';
 import 'src/fake/fake_note_store.dart';
@@ -107,4 +108,22 @@ MergeDecision newerVersionWinsPolicy(
   return remote.versions.max > local.versions.max
       ? const TakeRemote()
       : const KeepLocal();
+}
+
+/// (v2.17-md, m5-7/08-markdown 12.1) Sync situations of an MD 문서 in the fake store
+/// (createFakeNoteStore only; any other store → ArgumentError).
+abstract final class FakeMarkdownHooks {
+  static FakeNoteStore _fake(NoteStore store) => store is FakeNoteStore
+      ? store
+      : throw ArgumentError.value(store, 'store', 'not createFakeNoteStore()');
+
+  /// The body of [noteId] removed — the note arrived before its body
+  /// (`MarkdownDoc.bodyPresent` false, read-only).
+  static Future<void> removeBody(NoteStore store, NoteId noteId) =>
+      _fake(store).markdown.debugRemoveBody(noteId);
+
+  /// [text] stored as if another device's write had arrived (origin remote, a newer
+  /// version of another node, no conflict copy). Returns the new text version.
+  static Future<Hlc> remoteText(NoteStore store, NoteId noteId, String text) =>
+      _fake(store).markdown.debugRemoteText(noteId, text);
 }

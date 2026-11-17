@@ -24,6 +24,7 @@ import 'content_reader.dart';
 import 'events.dart';
 import 'handwriting_repository.dart';
 import 'library_repository.dart';
+import 'markdown_repository.dart';
 import 'pen_preset_repository.dart';
 import 'recording_repository.dart';
 import 'settings_repository.dart';
@@ -146,6 +147,9 @@ abstract interface class NoteStore {
   RecordingDraftStore get recordingDrafts;
   HandwritingRepository get handwriting;
   SearchIndex get search;
+
+  /// (v2.17-md, C217M-04) MD 문서 bodies (m5-7/08-markdown 12.1).
+  MarkdownRepository get markdown;
 }
 
 /// Opens (and migrates) the database. Throws NoteStoreOpenException.

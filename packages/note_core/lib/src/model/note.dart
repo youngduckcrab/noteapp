@@ -9,6 +9,45 @@ import 'sync_entity.dart';
 
 const ListEquality<String> _listEq = ListEquality<String>();
 
+/// (v2.17-md, C217M-01) Schema version of an MD 문서 (markdown document) note. A note's
+/// format is DERIVED from its `schemaVersion` range — there is no separate field, JSON key or
+/// column, so every path that copies or rebuilds a Note (copy, recovery copy, row / JSON
+/// mappers, sync) keeps the format as long as it keeps `schemaVersion`:
+///
+/// * 1..99 — handwriting (ink) note formats ([kNoteSchemaVersion] is the one this app edits);
+/// * 100..199 — markdown document formats ([kMarkdownNoteSchemaVersion] is this app's);
+/// * 200 and above — reserved for later formats ([NoteFormat.unknown]).
+///
+/// An app from before v2.17-md sees 100 > its kNoteSchemaVersion and opens the note read-only
+/// ('새 버전 앱 필요'), so it can never add pages to an MD 문서.
+const int kMarkdownNoteSchemaVersion = 100;
+
+/// First schema version of the formats after markdown (see [kMarkdownNoteSchemaVersion]).
+const int kLaterNoteFormatSchemaVersion = 200;
+
+/// (v2.17-md, C217M-01) What a note holds. Derived from [Note.schemaVersion]; set when the
+/// note is created and never changed (sync merges `schemaVersion` as the larger value, and
+/// CORE refuses a write that moves a stored note into another format's range).
+enum NoteFormat {
+  /// Handwriting pages (schemaVersion 1..99).
+  ink,
+
+  /// MD 문서: the note's text lives in its markdown body (schemaVersion 100..199).
+  markdown,
+
+  /// A format of a later app version (schemaVersion ≥ 200): read-only, never opened.
+  unknown;
+
+  /// The format of a stored [schemaVersion] (values below 1 count as ink — the migrator's
+  /// range).
+  static NoteFormat ofSchemaVersion(int schemaVersion) =>
+      schemaVersion < kMarkdownNoteSchemaVersion
+      ? NoteFormat.ink
+      : schemaVersion < kLaterNoteFormatSchemaVersion
+      ? NoteFormat.markdown
+      : NoteFormat.unknown;
+}
+
 @immutable
 sealed class NoteCover {
   const NoteCover();
@@ -124,8 +163,20 @@ final class Note implements SyncEntity {
   @override
   bool get isDeleted => deletedAt != null;
 
-  /// True when this note was written by a newer app (schemaVersion > kNoteSchemaVersion).
-  bool get requiresNewerApp => schemaVersion > kNoteSchemaVersion;
+  /// (v2.17-md) Derived from [schemaVersion] (see [kMarkdownNoteSchemaVersion]).
+  NoteFormat get format => NoteFormat.ofSchemaVersion(schemaVersion);
+
+  /// (v2.17-md) An MD 문서 (markdown document): no pages, the text is its markdown body.
+  bool get isMarkdown => format == NoteFormat.markdown;
+
+  /// True when this note was written by a newer app: an ink note above [kNoteSchemaVersion],
+  /// an MD 문서 above [kMarkdownNoteSchemaVersion], any [NoteFormat.unknown] note
+  /// (v2.17-md: compared with the version of the note's own format).
+  bool get requiresNewerApp => switch (format) {
+    NoteFormat.ink => schemaVersion > kNoteSchemaVersion,
+    NoteFormat.markdown => schemaVersion > kMarkdownNoteSchemaVersion,
+    NoteFormat.unknown => true,
+  };
 
   Note copyWith({
     OwnerId? ownerId,
@@ -258,5 +309,6 @@ final class Note implements SyncEntity {
   @override
   String toString() =>
       'Note($id, "$title", folder: $folderId, pages: $pageCount'
+      '${isMarkdown ? ', markdown' : ''}'
       '${isDeleted ? ', deleted' : ''})';
 }

@@ -19,6 +19,7 @@ const _scanned = [
   'packages/ink_recognition/lib',
   'packages/pdf_io/lib',
   'packages/media_io/lib',
+  'packages/feature_markdown/lib', // v2.17-md
   'app/lib',
 ];
 

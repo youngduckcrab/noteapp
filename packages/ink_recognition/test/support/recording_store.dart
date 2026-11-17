@@ -113,6 +113,8 @@ final class RecordingNoteStore implements core.NoteStore {
   core.RecordingDraftStore get recordingDrafts => inner.recordingDrafts;
   @override
   core.SearchIndex get search => inner.search;
+  @override
+  core.MarkdownRepository get markdown => inner.markdown; // v2.17-md
 }
 
 final class _Content implements core.NoteContentReader {

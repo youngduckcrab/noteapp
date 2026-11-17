@@ -51,6 +51,7 @@ import '../sync/field_versions.dart';
 import '../sync/merge.dart';
 import '../sync/outbox_types.dart';
 import '../sync/sync_store.dart';
+import 'fake_markdown.dart';
 import 'fake_v2_repositories.dart';
 import 'fake_write_queue.dart';
 import 'memory_search_index.dart';
@@ -142,6 +143,8 @@ final class FakeNoteStore implements NoteStore {
   // and the memory blob map with the real 'rd/<draftId>/…' keys — 6.7.1).
   final Map<RecordingId, Recording> recordingRows = {};
   final Map<PageId, HandwritingText> handwritingRows = {};
+  // (v2.17-md) MD 문서 bodies by note id (fake_markdown.dart).
+  final Map<NoteId, FakeMarkdownBody> markdownRows = {};
   final Map<String, RecordingDraft> draftRows = {};
   final Map<String, Uint8List> draftBlobs = {};
   final Map<PresetId, PenPreset> presets = {};
@@ -186,6 +189,9 @@ final class FakeNoteStore implements NoteStore {
   late final FakeHandwriting handwriting = FakeHandwriting(this);
   @override
   late final MemorySearchIndex search = MemorySearchIndex(this);
+  // (v2.17-md, C217M-04)
+  @override
+  late final FakeMarkdown markdown = FakeMarkdown(this);
 
   @override
   OwnerId get ownerId => _ownerId;
@@ -483,6 +489,10 @@ final class FakeNoteStore implements NoteStore {
     final note = notes[noteId];
     if (note == null || note.ownerId != ownerId) {
       throw EntityNotFoundException('Note $noteId does not exist');
+    }
+    // (v2.17-md, C217M-05) the ink editor never opens an MD 문서 (it could add pages).
+    if (note.isMarkdown) {
+      throw WrongNoteFormatException('Note $noteId is an MD document');
     }
     var session = _sessions[noteId];
     if (session != null && !session.isClosed) {
@@ -1333,6 +1343,8 @@ final class _FakeLibrary implements LibraryRepository {
       version: v,
     );
     changes.add(s.changeOf(s.notes[id]!));
+    // (v2.17-md, C217M-05) an MD 문서 copies its body.
+    if (n.isMarkdown) s.markdown.copyBody(n.id, id, v);
     // (v2.0, m5-7/02-core 6.14.1 ①) recordings: new ids, the same asset / title / timing.
     final recordingIds = <RecordingId, RecordingId>{};
     for (final r in s.recordings.activeOf(n.id)) {
@@ -1593,6 +1605,7 @@ final class _FakeTrash implements TrashRepository {
     }
     for (final n in s.ownNotes.where((n) => n.trashRootId == rootId).toList()) {
       s.notes.remove(n.id);
+      s.markdownRows.remove(n.id); // (v2.17-md) the MD 문서 body goes with it
       changes.add(s.changeOf(n, purged: true));
       // (v2.0, 6.14.2) recordings, drafts and the search owners of the note go with it.
       s.recordingRows.removeWhere((_, r) => r.noteId == n.id);

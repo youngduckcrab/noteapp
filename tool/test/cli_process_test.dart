@@ -37,6 +37,7 @@ void main() {
       'media_io',
       'ink_recognition',
       'pencil_bridge',
+      'feature_markdown', // v2.17-md
       'noteapp',
     ]);
   });

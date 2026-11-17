@@ -38,6 +38,7 @@ void main() {
       'ink_lab',
       'media_io',
       'ink_recognition',
+      'feature_markdown', // v2.17-md
       'noteapp',
     ]);
   });
@@ -57,6 +58,7 @@ void main() {
       'pdf_io',
       'ink_lab',
       'ink_recognition',
+      'feature_markdown', // v2.17-md
       'noteapp',
     ]);
   });
