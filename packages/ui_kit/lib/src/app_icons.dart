@@ -178,7 +178,50 @@ enum AppIconKind {
 
   /// Indent / outdent of the editor's symbol row.
   indent(Icons.format_indent_increase_rounded),
-  outdent(Icons.format_indent_decrease_rounded);
+  outdent(Icons.format_indent_decrease_rounded),
+
+  // --- MD 문서 live editing (v2.18-md, m5-7/08-markdown 24.7) — the format toolbar ----
+  /// 굵게 (`**…**`).
+  formatBold(Icons.format_bold_rounded),
+
+  /// 기울임 (`*…*`).
+  formatItalic(Icons.format_italic_rounded),
+
+  /// 취소선 (`~~…~~`).
+  formatStrike(Icons.format_strikethrough_rounded),
+
+  /// 코드 (inline `` `…` ``).
+  inlineCode(Icons.data_array_rounded),
+
+  /// 제목 (a heading level).
+  heading(Icons.format_size_rounded),
+
+  /// 목록 (bullet list).
+  listBullet(Icons.format_list_bulleted_rounded),
+
+  /// 번호 목록.
+  listNumbered(Icons.format_list_numbered_rounded),
+
+  /// 할 일 (`- [ ] `).
+  taskBox(Icons.check_box_outlined),
+
+  /// 인용 (`> `).
+  quote(Icons.format_quote_rounded),
+
+  /// 코드 블록 (a fenced block).
+  codeBlock(Icons.data_object_rounded),
+
+  /// 표.
+  table(Icons.table_chart_outlined),
+
+  /// 구분선 (`---`).
+  horizontalRule(Icons.horizontal_rule_rounded),
+
+  /// 블록 합치기 (joins a block with the one before it).
+  blockJoin(Icons.call_merge_rounded),
+
+  /// 완료 (closes the block being edited, hides the keyboard).
+  done(Icons.keyboard_hide_rounded);
 
   const AppIconKind(this.material, {this.lineArt = false});
 
@@ -724,7 +767,21 @@ class AppIconPainter extends CustomPainter {
           AppIconKind.copyText ||
           AppIconKind.imageBlocked ||
           AppIconKind.indent ||
-          AppIconKind.outdent:
+          AppIconKind.outdent ||
+          AppIconKind.formatBold ||
+          AppIconKind.formatItalic ||
+          AppIconKind.formatStrike ||
+          AppIconKind.inlineCode ||
+          AppIconKind.heading ||
+          AppIconKind.listBullet ||
+          AppIconKind.listNumbered ||
+          AppIconKind.taskBox ||
+          AppIconKind.quote ||
+          AppIconKind.codeBlock ||
+          AppIconKind.table ||
+          AppIconKind.horizontalRule ||
+          AppIconKind.blockJoin ||
+          AppIconKind.done:
         break;
     }
   }
