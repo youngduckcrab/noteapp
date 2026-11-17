@@ -178,6 +178,8 @@ final class CountingNoteStore implements NoteStore {
   @override
   SearchIndex get search => inner.search;
   @override
+  MarkdownRepository get markdown => inner.markdown; // v2.17-md
+  @override
   Stream<ChangeBatch> get changes => inner.changes;
   @override
   IdGenerator get ids => inner.ids;

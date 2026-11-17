@@ -25,6 +25,8 @@ workspace:
   - packages/media_io          # PDF
   - packages/ink_recognition   # LIBRARY
   - packages/pencil_bridge     # INFRA
+  # v2.17-md (C217M-09): the MD 문서 screen (docs/plans/m5-7/08-markdown.md 7.1).
+  - packages/feature_markdown
 dev_dependencies:
   flutter_lints: 6.0.0
   yaml: 3.1.4

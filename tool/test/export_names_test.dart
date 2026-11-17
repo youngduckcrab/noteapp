@@ -210,6 +210,8 @@ void main() {
           'pencil_bridge',
           // v2.14-ui: the shared design layer.
           'ui_kit',
+          // v2.17-md: the MD 문서 screen (two entry points).
+          'feature_markdown',
         },
       );
       expect(

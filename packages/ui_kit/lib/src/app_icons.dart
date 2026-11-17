@@ -140,7 +140,45 @@ enum AppIconKind {
   sortUp(Icons.arrow_upward_rounded),
   sortDown(Icons.arrow_downward_rounded),
   warning(Icons.warning_amber_rounded),
-  error(Icons.error_outline_rounded);
+  error(Icons.error_outline_rounded),
+
+  // --- MD 문서 (v2.17-md, m5-7/08-markdown 12.3) — menu / screen glyphs only ---------
+  /// An MD 문서 (cards, search rows, the screen's info).
+  markdownDoc(Icons.article_outlined),
+
+  /// '새 MD 문서'.
+  newMarkdown(Icons.post_add_rounded),
+
+  /// 'MD 가져오기'.
+  importMarkdown(Icons.file_open_outlined),
+
+  /// '.md로 내보내기'.
+  exportMarkdown(Icons.file_download_outlined),
+
+  /// 편집 (source editor) of the 보기 ↔ 편집 button.
+  editSource(Icons.edit_document),
+
+  /// 보기 (rendered view) of the 보기 ↔ 편집 button.
+  viewRendered(Icons.chrome_reader_mode_outlined),
+
+  /// 나란히 (editor + preview side by side).
+  splitView(Icons.vertical_split_outlined),
+
+  /// A link (the link sheet).
+  link(Icons.link_rounded),
+
+  /// [외부 앱에서 열기] of the link sheet.
+  openExternal(Icons.open_in_browser_rounded),
+
+  /// 복사 (code block, link sheet) — copy text, not 'duplicate'.
+  copyText(Icons.copy_all_rounded),
+
+  /// A remote / missing image that was not loaded.
+  imageBlocked(Icons.image_not_supported_outlined),
+
+  /// Indent / outdent of the editor's symbol row.
+  indent(Icons.format_indent_increase_rounded),
+  outdent(Icons.format_indent_decrease_rounded);
 
   const AppIconKind(this.material, {this.lineArt = false});
 
@@ -673,7 +711,20 @@ class AppIconPainter extends CustomPainter {
           AppIconKind.sortUp ||
           AppIconKind.sortDown ||
           AppIconKind.warning ||
-          AppIconKind.error:
+          AppIconKind.error ||
+          AppIconKind.markdownDoc ||
+          AppIconKind.newMarkdown ||
+          AppIconKind.importMarkdown ||
+          AppIconKind.exportMarkdown ||
+          AppIconKind.editSource ||
+          AppIconKind.viewRendered ||
+          AppIconKind.splitView ||
+          AppIconKind.link ||
+          AppIconKind.openExternal ||
+          AppIconKind.copyText ||
+          AppIconKind.imageBlocked ||
+          AppIconKind.indent ||
+          AppIconKind.outdent:
         break;
     }
   }

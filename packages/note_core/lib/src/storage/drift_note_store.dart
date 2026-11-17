@@ -23,6 +23,7 @@ import '../migration/note_migrator.dart';
 import '../model/sync_entity.dart';
 import '../repo/content_reader.dart';
 import '../repo/events.dart';
+import '../repo/markdown_repository.dart';
 import '../repo/note_store.dart';
 import '../repo/status.dart';
 import '../session/note_session.dart';
@@ -31,6 +32,7 @@ import 'db/note_database.dart';
 import 'drift_content_reader.dart';
 import 'drift_handwriting_repository.dart';
 import 'drift_library_repository.dart';
+import 'drift_markdown_repository.dart';
 import 'drift_pen_preset_repository.dart';
 import 'drift_recording_draft_store.dart';
 import 'drift_recording_repository.dart';
@@ -283,6 +285,10 @@ final class DriftNoteStore implements NoteStore {
   late final DriftHandwritingRepository handwriting;
   @override
   late final DriftSearchIndex search;
+
+  /// (v2.17-md, C217M-04) MD 문서 bodies — a placeholder until Track A (A-3).
+  @override
+  late final MarkdownRepository markdown = DriftMarkdownRepository(this);
 
   /// Open note sessions (6.14).
   late final DriftSessions sessions;

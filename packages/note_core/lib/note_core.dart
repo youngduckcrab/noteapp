@@ -45,6 +45,7 @@ export 'src/repo/folder_tree.dart';
 export 'src/repo/handwriting_repository.dart';
 export 'src/repo/library_repository.dart';
 export 'src/repo/library_types.dart';
+export 'src/repo/markdown_repository.dart';
 export 'src/repo/note_store.dart';
 export 'src/repo/pen_preset_repository.dart';
 export 'src/repo/recording_repository.dart';

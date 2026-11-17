@@ -24,6 +24,9 @@ dependencies:
   pencil_bridge: any
   # shared design layer (contract 7.1 v2.14-ui).
   ui_kit: any
+  # v2.17-md (C217M-09): the MD 문서 screen — `feature_markdown.dart` is imported
+  # deferred (web budget), `slots.dart` eagerly (docs/plans/m5-7/08-markdown.md 17).
+  feature_markdown: any
   flutter_riverpod: 3.4.3
   material_ui: 1.10.0
   go_router: 18.1.2
