@@ -53,6 +53,10 @@ final class FeatureWiringModule extends AppModule {
     this._imageImporter = mediaImageImporterOrNull,
     LibraryMarkdownImportAction? importMarkdown,
 
+    /// (v2.17-md) Where '.md로 내보내기' delivers (tests: a recording output). null →
+    /// the platform's share / save (web: share / download).
+    this._markdownOutput,
+
     /// tests: the idle preload is native only.
     this._isWeb = kIsWeb,
   }) : _importMarkdown = importMarkdown ?? markdownImportAction();
@@ -61,6 +65,7 @@ final class FeatureWiringModule extends AppModule {
 
   /// (v2.17-md) 'MD 가져오기' (tests give a fake picker).
   final LibraryMarkdownImportAction _importMarkdown;
+  final DocumentFileOutput? _markdownOutput;
 
   static const String moduleId = 'featureWiring';
 
@@ -276,9 +281,16 @@ final class FeatureWiringModule extends AppModule {
       // PDF engine, so they do not wait for the PDF module. No link opener (Q1 open).
       libraryMarkdownImportActionProvider.overrideWithValue(_importMarkdown),
       libraryMarkdownExportActionProvider.overrideWithValue(
-        markdownLibraryExportAction(),
+        markdownLibraryExportAction(output: _markdownOutput),
       ),
-      markdownExportActionProvider.overrideWithValue(exportMarkdownText),
+      markdownExportActionProvider.overrideWithValue(
+        (context, {required title, required text}) => exportMarkdownText(
+          context,
+          title: title,
+          text: text,
+          output: _markdownOutput,
+        ),
+      ),
       if (_inkSearch(contributions) case final inkSearch?)
         libraryInkSearchProvider.overrideWith(inkSearch),
       if (_noteInkSearch(contributions) case final inkSearch?)

@@ -181,6 +181,9 @@ class _DeferredMarkdownScreenState extends State<_DeferredMarkdownScreen> {
       navigator.closeMarkdown();
       navigator.openNote(args.noteId);
     },
+    // (v2.17-md, C217M-14 — Track B B4) The conflict banner's [사본 열기]: the copy
+    // opens on top, so back returns to this document.
+    onOpenMarkdown: (copyId) => navigator.openMarkdown(copyId),
   );
 
   Future<void>? _loading;

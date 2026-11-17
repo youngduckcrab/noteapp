@@ -805,3 +805,11 @@ final markdownOpenLinkProvider = Provider<MarkdownOpenLinkAction?>((ref) => null
 | B11 (a) MD 전용 entityTooLarge 알림 · (b) 본문 없는 문서 '복제' 끄기 | 받아들인 차이 | (a) 일반 동기화 문제 보고로 충분, 받은 쪽은 읽기 전용 띠. (b) 빈 본문 복제는 잃을 글이 없고, 끄려면 메뉴마다 본문을 읽어야 함 |
 | B13 남의 탐침 시험 파일 | 해당 없음 | 작업 트리 깨끗(추적 안 된 파일 없음) |
 
+
+## 22. 통합 (2026-11-17, 15.4)
+
+- 병합: `track/md-data`(A) → `track/md-ui`(B), 둘 다 `--no-ff`. 두 트랙의 기반 커밋(`31e7ef2` · `658f361`)은 트리가 같아 코드 충돌은 모두 한쪽만 바꾼 파일의 add/add — 바꾼 쪽을 택함. 이 문서와 00-overview는 기반을 공통 조상으로 다시 3방향 병합(19.1 → 20 → 21 순서, 15.4 실기기 항목은 둘 다 넣어 12개).
+- 이은 것: `MarkdownScreen.onOpenMarkdown` → `AppNavigator.openMarkdown`(충돌 띠 [사본 열기], 사본이 위에 열리고 뒤로 가면 원래 문서). `FeatureWiringModule(markdownOutput:)` — 시험이 '.md로 내보내기'의 출력(공유 · 저장)을 바꿔 끼우는 자리, 제품은 null(플랫폼 출력).
+- 앱 끝까지 시험(MD-T11 확장): `app/test/support/markdown_e2e_scenario.dart` — 실제 모듈 · 라우터 · 라이브러리 · MD 화면으로 새로 만들기 › MD 가져오기 → 보기(제목 · 할 일 상자 · 수식) → 편집 → [←] 두 번 → 저장 확인 · 카드 → 라이브러리 검색 → 결과 → `/md/<id>?q=` · 강조 → ⋯ › .md로 내보내기 › 저장(바이트 같음, 이름 `<제목>.md`) → 새 MD 문서(편집으로 열림) → 휴지통으로 이동 → 휴지통 › 복원 → 홈 · 최근에 다시 보임. 가짜 CORE로 기본 실행(`app/test/app/markdown_end_to_end_test.dart`), 실제 CORE(메모리)로 integration 단계(`app/test/integration/markdown_real_core_test.dart`) — 둘 다 통과.
+- 남은 것: 실기기 체크리스트 12항목(15.4), APK 빌드, `app_smoke_v2_test`(integration)의 MD와 무관한 override 표 4줄(21절 · progress).
+- 웹 예산(병합 뒤 `flutter build web --release`, `ws web-budget check`): main.dart.js **6,971,472 raw / 2,056,242 gzip** — 트랙 A 검토 반영 뒤(2,045,178) 대비 **+11,064 gzip**, MD 이전 바탕(2,026,031) 대비 **+30,211 gzip**. MD 화면 deferred part `main.dart.js_1.part.js` 258,031 raw / 87,485 gzip(첫 화면에 안 실림). 상한 2,000,000은 바탕부터 over — 총괄 판단(17절). 글꼴 · 성장 상한은 통과.

@@ -106,6 +106,29 @@ void main() {
     expect(find.byType(MarkdownScreen), findsNothing);
   });
 
+  testWidgets('[사본 열기] (onOpenMarkdown of the screen) opens the conflict '
+      'copy on top; back returns to the document', (tester) async {
+    final store = await _pump(tester);
+    final note = await tester.runAsync(
+      () => store.markdown.create(title: '문서', text: 'a'),
+    );
+    final copy = await tester.runAsync(
+      () => store.markdown.create(title: '문서 (충돌 사본)', text: 'b'),
+    );
+    tester.widget<LibraryScreen>(find.byType(LibraryScreen)).onOpenMarkdown!(
+      note!.id,
+    );
+    await tester.pumpAndSettle();
+    final screen = tester.widget<MarkdownScreen>(find.byType(MarkdownScreen));
+    expect(screen.onOpenMarkdown, isNotNull);
+    screen.onOpenMarkdown!(copy!.id);
+    await tester.pumpAndSettle();
+    expect(_location(tester), markdownRoute(copy.id));
+    tester.widget<MarkdownScreen>(find.byType(MarkdownScreen)).onClose();
+    await tester.pumpAndSettle();
+    expect(_location(tester), markdownRoute(note.id));
+  });
+
   testWidgets('a new document opens in edit mode (edit=1)', (tester) async {
     await _pump(tester);
     tester.widget<LibraryScreen>(find.byType(LibraryScreen)).onOpenMarkdown!(

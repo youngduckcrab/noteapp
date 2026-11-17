@@ -72,3 +72,12 @@
 새 시험: `md_conflict_copy_test` 6 · 6b · 6c · 7번 묶음 5개(옛 코드에서 7개 실패 확인 뒤 고침), `markdown_contract_real_test` 서로게이트 · 묘비, `markdown_import_test` '.md', `markdown_wiring_test` 파일마다 거절, `markdown_routing_test` redirect 빠른 길 · 다시 시도 · 한가 작업, feature_library `markdown_size_test`, `library_markdown_golden_test`(6장).
 
 웹 예산(고침 뒤 다시 잼): main.dart.js **6,938,174 raw / 2,045,178 gzip** — 트랙 A 끝 대비 **+2,245 raw / +674 gzip**, part 파일 2,038 B(+260). 상한 2,000,000은 여전히 over(기반부터 — 총괄 판단).
+
+## 통합 (2026-11-17, 15.4)
+
+- `track/md-data` · `track/md-ui`를 `claude/note-app-planning-bk29xb`에 `--no-ff`로 병합. 코드 충돌은 기반 파일 add/add뿐(두 기반 커밋 트리 같음) — 바꾼 쪽을 택함. 계획 문서는 기반을 조상으로 다시 3방향 병합. 자세한 것은 [08-markdown 22절](../m5-7/08-markdown.md).
+- 이음: 충돌 띠 [사본 열기] → `AppNavigator.openMarkdown`. `FeatureWiringModule(markdownOutput:)`(시험용 내보내기 출력).
+- 앱 끝까지 시험: `app/test/app/markdown_end_to_end_test.dart`(가짜 CORE, 기본 실행) · `app/test/integration/markdown_real_core_test.dart`(실제 CORE, integration) — 같은 시나리오 `app/test/support/markdown_e2e_scenario.dart`. `markdown_routing_test`에 [사본 열기] 경로 시험.
+- 확인: ws check --strict 0 · 0, analyze 0, format 0, tool 566, ui_kit 75, note_core 1,339, ink_engine 1,481, ink_recognition 629, sync_engine 1,016, feature_editor 1,821, feature_library 751, feature_markdown 135, pdf_io 845, media_io 405, pencil_bridge 57, app 657 — 모두 통과.
+- 웹 예산: main.dart.js 2,056,242 gzip(트랙 A 뒤 +11,064), MD deferred part 87,485 gzip. 상한 over는 바탕부터.
+- 남음: 실기기 체크리스트 12항목, APK, `app_smoke_v2_test`의 MD와 무관한 override 4줄.
