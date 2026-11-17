@@ -36,6 +36,13 @@ final SettingKey<bool> kMarkdownSplitViewSetting = SettingKey.boolean(
   scope: SettingScope.device,
 );
 
+/// The one-time hint '글을 누르면 바로 고칠 수 있어요' was shown on this device (24.17 L′12).
+final SettingKey<bool> kMarkdownLiveHintSetting = SettingKey.boolean(
+  'markdown.liveHintShown',
+  false,
+  scope: SettingScope.device,
+);
+
 /// Text that could not be saved when the screen was left or the app went to the
 /// background, per document: `{<noteId>: {text, base, at}}` — `base` is the textVersion
 /// (Hlc string, or null) the text was written on, so a restore saves against it and the
@@ -175,7 +182,9 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
     try {
       final split = await settings.get(kMarkdownSplitViewSetting);
       final unsaved = await settings.get(kMarkdownUnsavedSetting);
+      final hinted = await settings.get(kMarkdownLiveHintSetting);
       if (!mounted) return;
+      _hintPending = !hinted && !widget.initialEdit;
       final mine = unsaved[widget.noteId];
       setState(() {
         _splitSetting = split;
@@ -184,9 +193,31 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
         }
       });
       _checkUnsaved();
+      _maybeHint();
     } on Object catch (e) {
       debugPrint('feature_markdown: settings: $e');
     }
+  }
+
+  /// The hint is still to show (read from settings).
+  bool _hintPending = false;
+
+  /// '글을 누르면 바로 고칠 수 있어요' once per device, the first time an editable document
+  /// shows in 보기 (24.17 L′12).
+  void _maybeHint() {
+    if (!_hintPending || !_c.loaded || !_liveOn || _live.isOpen) return;
+    if (_parsed.blocks.isEmpty) return;
+    _hintPending = false;
+    unawaited(
+      _settings.set(kMarkdownLiveHintSetting, true).catchError((Object _) {}),
+    );
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      const SnackBar(
+        key: MarkdownKeys.liveHint,
+        duration: Duration(seconds: 5),
+        content: Text(MdStrings.liveHint),
+      ),
+    );
   }
 
   @override
@@ -361,6 +392,7 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
       }
     }
     _maybeLand();
+    _maybeHint();
     if (_parsed.source == _c.text.text) {
       _ghost = null;
       final next = _afterParse;
@@ -414,7 +446,14 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
   /// Opens [unit] of the current parse with the caret at [caret] (of the unit's text).
   bool _openUnit(LiveUnit unit, int? caret) {
     if (!_liveOn) return false;
-    if (unit.end - unit.start > kMaxLiveUnitChars) {
+    final blocks = _layout.doc.blocks;
+    final table =
+        unit.item == null &&
+        unit.block < blocks.length &&
+        blocks[unit.block].nodes.length == 1 &&
+        blocks[unit.block].nodes.single is MdTable;
+    if (unit.end - unit.start > kMaxLiveUnitChars ||
+        table && unit.end - unit.start > kMaxLiveTableChars) {
       _live.focus.unfocus();
       _say(MdStrings.liveTooLong);
       _c.text.selection = TextSelection.collapsed(
@@ -442,6 +481,10 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
 
   bool _openEnd() {
     if (!_liveOn) return false;
+    // After an unclosed fence / HTML block new text would land inside it: that block
+    // opens at its end instead (24.17 L′4).
+    final tail = _layout.openTail;
+    if (tail != null) return _openUnit(tail, null);
     if (!_live.openAtEnd(_layout)) return false;
     _focusField();
     return true;
@@ -465,6 +508,106 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
       next();
       if (!_live.isOpen) _live.focus.unfocus();
     });
+  }
+
+  /// Enter that starts a new paragraph (24.17 L′1): on a document parsed on the main
+  /// isolate the block closes and the paragraph becomes a block of its own, in the same
+  /// field (the keyboard and the IME connection stay) — at the end of the block (or on a
+  /// setext title, or leaving a list on its last line) a new empty block after it, in
+  /// the middle the block splits there, at its start a new empty block in front of it.
+  /// A large document keeps the paragraph in the field (its parse runs elsewhere, the
+  /// keyboard would drop on every Enter).
+  TextEditingValue? _onParagraph(TextEditingValue old, {required bool leave}) {
+    final s = _live.session;
+    if (s == null || s.kind != LiveKind.prose) return null;
+    final sel = old.selection;
+    final text = old.text;
+    final small = _c.text.text.length <= kParseOffThreadChars;
+    if (!small || !sel.isCollapsed) {
+      return leave ? null : _live.paragraphInField(old);
+    }
+    final caret = sel.start;
+    final (ls, le) = lineAt(text, caret);
+    if (leave) {
+      if (ls == 0 || text.substring(le).trim().isNotEmpty) return null;
+      // The empty item goes; the new paragraph comes after the block.
+      final keep = text.substring(0, ls - 1);
+      _splitLater(s, keep, _openAfter);
+      return TextEditingValue(
+        text: keep,
+        selection: TextSelection.collapsed(offset: keep.length),
+      );
+    }
+    if (s.setext || text.substring(caret).trim().isEmpty) {
+      _splitLater(s, text, _openAfter);
+      return old;
+    }
+    if (text.substring(0, caret).trim().isEmpty) {
+      _splitLater(s, text, (start, _) => _openBefore(start));
+      return old;
+    }
+    // In the middle: the field gets the break now, the second half opens as its block.
+    _live.paragraphInField(old);
+    final out = text.replaceRange(caret, caret, '\n\n');
+    _splitLater(s, out, (start, _) => _openAt(start + caret + 2));
+    return TextEditingValue(
+      text: out,
+      selection: TextSelection.collapsed(offset: caret + 2),
+    );
+  }
+
+  /// Right after the Enter is in the field: closes the block (when nothing else changed
+  /// in between) and runs [then] with the buffer range the field held.
+  void _splitLater(
+    LiveSession s,
+    String fieldText,
+    void Function(int start, int end) then,
+  ) {
+    scheduleMicrotask(() {
+      if (!mounted ||
+          _live.session != s ||
+          _live.field.text != fieldText ||
+          _c.text.text != s.expect) {
+        return;
+      }
+      final start = s.range.fieldOffset(fieldText);
+      _commit(keepFocus: true);
+      final end = start + _live.field.text.length;
+      _whenFresh(() {
+        then(start, end);
+        if (!_live.isOpen) _live.focus.unfocus();
+      });
+    });
+  }
+
+  /// A new empty block after the unit that ends at (or holds) buffer offset [end].
+  bool _openAfter(int start, int end) {
+    if (!_liveOn) return false;
+    final layout = _layout;
+    final i = layout.indexAt(end > start ? end - 1 : end);
+    if (i < 0) return _openEnd();
+    final u = layout.units[i];
+    if (identical(u, layout.openTail)) return _openUnit(u, null);
+    if (!_live.openNew(layout, pendingAfter(layout.doc.source, u.end))) {
+      return false;
+    }
+    _focusField();
+    return true;
+  }
+
+  /// A new empty block in front of the unit at buffer offset [start].
+  bool _openBefore(int start) {
+    if (!_liveOn) return false;
+    final layout = _layout;
+    final u = layout.units.where((u) => u.end > start).firstOrNull;
+    if (u == null) return _openEnd();
+    if (!_live.openNew(layout, pendingBefore(u.start))) return false;
+    _focusField();
+    return true;
+  }
+
+  void _onTapOutside() {
+    if (_live.isOpen) _commit();
   }
 
   void _onTapUnit(LiveUnit unit, Offset global, BuildContext unitContext) {
@@ -614,6 +757,7 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
         onCommit: _commit,
         onUndo: _undo,
         onRedo: _redo,
+        onParagraph: _onParagraph,
       ),
     );
   }
@@ -872,11 +1016,19 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
   bool _canToggle(int i) => _taskOffset(i) != null;
 
   Future<void> _toggleTask(int i) async {
-    final offset = _taskOffset(i);
-    if (offset == null) return;
+    final mapped = _taskOffset(i);
+    if (mapped == null) return;
+    int? at = mapped;
     // A box of another block while one is open: that block closes first (the box's
-    // offset was mapped through it — 24.15 D′2, D′7).
-    if (_live.isOpen) _commit();
+    // offset was mapped through it — 24.15 D′2, D′7); closing may tidy the block (an
+    // emptied one goes with its blank lines), so the offset follows that change.
+    if (_live.isOpen) {
+      final open = _c.text.text;
+      _commit();
+      at = mapThroughChange(open, _c.text.text, mapped);
+    }
+    if (at == null) return;
+    final offset = at;
     final before = _c.text.text;
     final changed = _c.toggleTaskAt(offset);
     // The text right after the toggle: [되돌리기] flips the box back only while the
@@ -1462,6 +1614,7 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
       onTapUnit: _onTapUnit,
       onAddEnd: _onAddEnd,
       onPointerDownUnit: (u) => _pointerUnit = u,
+      onTapOutside: _onTapOutside,
     );
   }
 

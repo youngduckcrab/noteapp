@@ -128,7 +128,12 @@ final class MdLiveView {
     required this.onTapUnit,
     required this.onAddEnd,
     this.onPointerDownUnit,
+    this.onTapOutside,
   });
+
+  /// A tap in the view that no unit, link, box or field took (the margins, the space
+  /// below the document): the open block closes (24.4 '밖 누름 = 확정').
+  final VoidCallback? onTapOutside;
 
   /// A pointer went down on a unit (before a link inside it takes the tap).
   final void Function(LiveUnit unit)? onPointerDownUnit;
@@ -177,14 +182,29 @@ final class MdLiveView {
     );
   }
 
+  // A new block between blocks (Enter at the end / start of one — 24.17 L′1): the field
+  // goes in front of the first unit at or after its place.
+  void pendingBefore(int start, int block) {
+    if (fieldPlaced ||
+        active == null ||
+        !active.pending ||
+        start < active.start) {
+      return;
+    }
+    fieldPlaced = true;
+    units.add(MdUnit(block: block, first: false, special: MdUnitSpecial.field));
+  }
+
   for (var b = 0; b < doc.blocks.length; b++) {
-    blockUnit.add(units.length);
     final block = doc.blocks[b];
+    pendingBefore(block.start, b > 0 ? b - 1 : 0);
+    blockUnit.add(units.length);
     final spans = layout.items[b];
     if (spans != null) {
       final items = blockListItems(block)!;
       final mine = layout.unitsOfBlock(b).toList();
       for (var i = 0; i < spans.length; i++) {
+        if (i > 0) pendingBefore(spans[i].start, b);
         if (covered(spans[i].start, spans[i].end)) {
           field(b);
           continue;
@@ -562,25 +582,45 @@ class _MdViewState extends State<MdView> {
               ),
             );
           }
+          final fieldAt = units.indexWhere(
+            (u) => u.special == MdUnitSpecial.field,
+          );
+          final outside = widget.live?.onTapOutside;
           return SelectionArea(
-            child: ListView.builder(
-              key: widget.listKey,
-              controller: widget.controller.scroll,
-              padding: EdgeInsets.only(top: 20, bottom: 96),
-              itemCount: units.length,
-              itemBuilder: (context, u) => Align(
-                alignment: Alignment.topCenter,
-                child: SizedBox(
-                  width: (kReadingWidth + 2 * pad).clamp(
-                    0,
-                    constraints.maxWidth,
-                  ),
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(pad, 0, pad, units[u].gap),
-                    child: _UnitSlot(
-                      controller: widget.controller,
-                      index: u,
-                      child: _unit(units[u], style),
+            child: _outside(
+              outside,
+              ListView.builder(
+                key: widget.listKey,
+                controller: widget.controller.scroll,
+                padding: EdgeInsets.only(top: 20, bottom: 96),
+                itemCount: units.length,
+                // The open field is kept alive while scrolled away (_KeepAlive): it has its
+                // own key, so its kept element moves with it and never stays behind under
+                // a drawn unit — a kept-alive, unlaid-out paragraph inside the
+                // SelectionArea broke selection after switching blocks (24.17 L′13).
+                findChildIndexCallback: (key) {
+                  if (key == _fieldItemKey) return fieldAt < 0 ? null : fieldAt;
+                  if (key is ValueKey<int>) {
+                    final i = key.value;
+                    return i < units.length && i != fieldAt ? i : null;
+                  }
+                  return null;
+                },
+                itemBuilder: (context, u) => Align(
+                  key: u == fieldAt ? _fieldItemKey : ValueKey<int>(u),
+                  alignment: Alignment.topCenter,
+                  child: SizedBox(
+                    width: (kReadingWidth + 2 * pad).clamp(
+                      0,
+                      constraints.maxWidth,
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(pad, 0, pad, units[u].gap),
+                      child: _UnitSlot(
+                        controller: widget.controller,
+                        index: u,
+                        child: _unit(units[u], style),
+                      ),
                     ),
                   ),
                 ),
@@ -592,12 +632,27 @@ class _MdViewState extends State<MdView> {
     );
   }
 
+  /// Taps that nothing inside the list takes (deeper recognizers win the arena).
+  static Widget _outside(VoidCallback? onTap, Widget list) => onTap == null
+      ? list
+      : GestureDetector(
+          key: MarkdownKeys.liveOutside,
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: list,
+        );
+
   Widget _unit(MdUnit unit, MdStyle style) {
     final live = widget.live;
     switch (unit.special) {
       case MdUnitSpecial.field:
         Widget field = _KeepAlive(
-          child: SelectionContainer.disabled(child: live!.field(context)),
+          // A tap on the field's frame is a tap on the field, not outside it.
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {},
+            child: SelectionContainer.disabled(child: live!.field(context)),
+          ),
         );
         if (unit.first && unit.block >= 0) {
           field = KeyedSubtree(
@@ -728,6 +783,8 @@ class _UnitSlotState extends State<_UnitSlot> {
   @override
   Widget build(BuildContext context) => widget.child;
 }
+
+const ValueKey<String> _fieldItemKey = ValueKey('md.view.fieldItem');
 
 /// Keeps the open field alive while it is scrolled out of the list's cache (its
 /// controller and focus live in the screen; 24.15 D′12).

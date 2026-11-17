@@ -150,6 +150,19 @@ final class LiveLayout {
     }
   }
 
+  /// The last unit when the last block runs to the end of the text (an unclosed fence or
+  /// HTML block): a new block at the end would land inside it, so [+] opens that block
+  /// at its end instead (24.17 L′4).
+  LiveUnit? get openTail {
+    final blocks = doc.blocks;
+    if (blocks.isEmpty || units.isEmpty) return null;
+    final last = blocks.last;
+    if (units.last.block != blocks.length - 1) return null;
+    return runsToEnd(doc.source.substring(last.start, last.end))
+        ? units.last
+        : null;
+  }
+
   /// The index of the unit holding [offset] (or the nearest one before it); -1 when
   /// there are none.
   int indexAt(int offset) {

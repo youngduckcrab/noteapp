@@ -1,5 +1,7 @@
 // Pumps the MD 문서 screen on the fake store (Track B tests).
 import 'package:feature_markdown/feature_markdown.dart';
+import 'package:feature_markdown/src/markdown_screen.dart'
+    show kMarkdownLiveHintSetting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -16,9 +18,19 @@ final class MdHarness {
   int openedAsNote = 0;
   final List<NoteId> openedMarkdown = [];
 
-  static Future<MdHarness> create(WidgetTester tester) async {
+  /// [hint]: the one-time '글을 누르면 바로 고칠 수 있어요' snack bar may still show (off by
+  /// default, so it covers nothing in the other tests).
+  static Future<MdHarness> create(
+    WidgetTester tester, {
+    bool hint = false,
+  }) async {
     final store = createFakeNoteStore();
     addTearDown(() => tester.runAsync(store.close));
+    if (!hint) {
+      await tester.runAsync(
+        () => store.settings.set(kMarkdownLiveHintSetting, true),
+      );
+    }
     return MdHarness(store);
   }
 

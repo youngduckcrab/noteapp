@@ -15,10 +15,15 @@ import '../parse/md_model.dart';
 import '../render/md_style.dart';
 import '../screen/markdown_controller.dart';
 import 'live_edit.dart';
+import 'live_inline.dart';
 import 'live_units.dart';
 
 /// Units larger than this open the source editor instead (24.15 D′11).
 const int kMaxLiveUnitChars = 20000;
+
+/// Tables larger than this open the source editor instead: their pipe text wraps into
+/// an unreadable field (24.17 L′11).
+const int kMaxLiveTableChars = 4000;
 
 /// One open block.
 final class LiveSession {
@@ -28,7 +33,9 @@ final class LiveSession {
     required this.kind,
     required this.expect,
     this.unit,
-  }) : setext = unit?.setext ?? false;
+  }) : setext = unit?.setext ?? false,
+       coreStart = range.start,
+       coreEnd = range.end;
 
   /// The parse the session opened on (its source is `base`).
   final LiveLayout layout;
@@ -42,8 +49,24 @@ final class LiveSession {
   LiveUnit? unit;
   bool setext;
 
-  /// The list item's separators were widened already (24.15 U′3).
-  bool widened = false;
+  /// Characters [coreStart, coreEnd) of [base]: the block(s) the field shows, without
+  /// the separators a range may take along (emptying removes exactly these and the
+  /// blank lines around them).
+  int coreStart;
+  int coreEnd;
+
+  /// A list item's range as it opened, and the same with blank lines on both sides: the
+  /// latter while its first line has no list marker (it left the list — 24.15 U′3,
+  /// 24.17 L′3). Null once the range is fixed (a join, a non-item unit).
+  LiveRange? itemRange;
+  LiveRange? itemWide;
+
+  /// A blank line goes after the range already (Enter made a paragraph while a text line
+  /// follows directly — 24.17 L′1).
+  bool spacedAfter = false;
+
+  /// The field's text when the session opened ('' for a new block).
+  String opened = '';
 
   String get base => layout.doc.source;
   MdDocument get doc => layout.doc;
@@ -86,7 +109,9 @@ class LiveFieldController extends TextEditingController {
     final base = style ?? s.body;
     final faded = s.tokens.textSecondary;
     final spans = <InlineSpan>[];
-    void add(int from, int to, TextStyle st) {
+    // [from, to) in [st]; the composing part is drawn in [plain] (no inline looks while
+    // the IME is still composing a syllable there), underlined.
+    void add(int from, int to, TextStyle st, [TextStyle? plain]) {
       if (to <= from) return;
       if (composing.isValid && composing.start < to && composing.end > from) {
         final a = composing.start.clamp(from, to);
@@ -97,7 +122,7 @@ class LiveFieldController extends TextEditingController {
         spans.add(
           TextSpan(
             text: text.substring(a, b),
-            style: st.merge(
+            style: (plain ?? st).merge(
               const TextStyle(decoration: TextDecoration.underline),
             ),
           ),
@@ -112,6 +137,35 @@ class LiveFieldController extends TextEditingController {
       add(0, text.length, base);
       return TextSpan(style: base, children: spans);
     }
+    TextStyle look(TextStyle line, int f) {
+      if (f & LiveInline.marker != 0) return line.copyWith(color: faded);
+      var st = line;
+      if (f & (LiveInline.code | LiveInline.math) != 0) {
+        st = st.copyWith(
+          fontFamily: s.inlineCode.fontFamily,
+          fontFamilyFallback: s.inlineCode.fontFamilyFallback,
+          color: s.inlineCode.color,
+          backgroundColor: s.inlineCode.backgroundColor,
+        );
+      }
+      if (f & LiveInline.link != 0) st = s.link(st);
+      if (f & LiveInline.bold != 0) {
+        st = st.copyWith(fontWeight: FontWeight.w700);
+      }
+      if (f & LiveInline.italic != 0) {
+        st = st.copyWith(fontStyle: FontStyle.italic);
+      }
+      if (f & LiveInline.strike != 0) {
+        st = st.copyWith(
+          decoration: TextDecoration.combine([
+            if (st.decoration != null) st.decoration!,
+            TextDecoration.lineThrough,
+          ]),
+        );
+      }
+      return st;
+    }
+
     var start = 0;
     var fence = false;
     while (start <= text.length) {
@@ -120,12 +174,13 @@ class LiveFieldController extends TextEditingController {
       final line = text.substring(start, end);
       var lineStyle = base;
       var marker = 0;
-      final fenceLine = RegExp(r'^[ \t]*(`{3,}|~{3,})').hasMatch(line);
-      if (fence || fenceLine) {
+      final fenceLine = _fenceLine.hasMatch(line);
+      final code = fence || fenceLine;
+      if (code) {
         lineStyle = s.codeBlock.copyWith(color: base.color);
         if (fenceLine) fence = !fence;
       } else {
-        final h = RegExp(r'^ {0,3}(#{1,6})(?:[ \t]+|$)').firstMatch(line);
+        final h = _headingLine.firstMatch(line);
         if (h != null) {
           lineStyle = s.headings[h.group(1)!.length - 1];
           marker = h.group(0)!.length;
@@ -134,7 +189,22 @@ class LiveFieldController extends TextEditingController {
         }
       }
       add(start, start + marker, lineStyle.copyWith(color: faded));
-      add(start + marker, end, lineStyle);
+      if (code) {
+        add(start + marker, end, lineStyle);
+      } else {
+        var at = start + marker;
+        for (final r in liveInlineRuns(line.substring(marker))) {
+          add(at, start + marker + r.start, lineStyle);
+          add(
+            start + marker + r.start,
+            start + marker + r.end,
+            look(lineStyle, r.flags),
+            lineStyle,
+          );
+          at = start + marker + r.end;
+        }
+        add(at, end, lineStyle);
+      }
       if (end < text.length) add(end, end + 1, lineStyle);
       if (end >= text.length) break;
       start = end + 1;
@@ -142,6 +212,9 @@ class LiveFieldController extends TextEditingController {
     return TextSpan(style: base, children: spans);
   }
 }
+
+final RegExp _fenceLine = RegExp(r'^[ \t]*(`{3,}|~{3,})');
+final RegExp _headingLine = RegExp(r'^ {0,3}(#{1,6})(?:[ \t]+|$)');
 
 class LiveEditor extends ChangeNotifier {
   LiveEditor(this.c) {
@@ -174,14 +247,20 @@ class LiveEditor extends ChangeNotifier {
     if (!_canOpen(layout)) return false;
     if (unit.end - unit.start > kMaxLiveUnitChars) return false;
     final text = layout.doc.source.substring(unit.start, unit.end);
+    final session = LiveSession(
+      layout: layout,
+      range: LiveRange(start: unit.start, end: unit.end),
+      kind: unit.kind,
+      expect: c.text.text,
+      unit: unit,
+    )..opened = text;
+    if (unit.item != null) {
+      session
+        ..itemRange = session.range
+        ..itemWide = _itemWide(layout, unit);
+    }
     _start(
-      LiveSession(
-        layout: layout,
-        range: LiveRange(start: unit.start, end: unit.end),
-        kind: unit.kind,
-        expect: c.text.text,
-        unit: unit,
-      ),
+      session,
       TextEditingValue(
         text: text,
         selection: TextSelection.collapsed(
@@ -194,19 +273,49 @@ class LiveEditor extends ChangeNotifier {
 
   /// Opens a new, empty block at the end of the document (or in an empty one).
   bool openAtEnd(LiveLayout layout) {
-    if (!_canOpen(layout)) return false;
     final blocks = layout.doc.blocks;
     final last = blocks.isEmpty ? -1 : blocks.last.end;
+    return openNew(layout, pendingAtEnd(layout.doc.source, last));
+  }
+
+  /// Opens a new, empty block at [range] (a pending range of [layout]'s source).
+  bool openNew(LiveLayout layout, LiveRange range) {
+    if (!_canOpen(layout)) return false;
     _start(
       LiveSession(
         layout: layout,
-        range: pendingAtEnd(layout.doc.source, last),
+        range: range,
         kind: LiveKind.prose,
         expect: c.text.text,
       ),
       const TextEditingValue(selection: TextSelection.collapsed(offset: 0)),
     );
     return true;
+  }
+
+  /// [unit]'s range with blank lines in front (not the first item) and after (not the
+  /// last item) where it has single line breaks: what the range becomes while the item
+  /// has no marker, so it stands apart from the items around it.
+  static LiveRange _itemWide(LiveLayout layout, LiveUnit unit) {
+    final spans = layout.items[unit.block]!;
+    final item = unit.item!;
+    final base = layout.doc.source;
+    var r = LiveRange(start: unit.start, end: unit.end);
+    final st = unit.start;
+    final en = unit.end;
+    if (item > 0 &&
+        st >= 1 &&
+        base.codeUnitAt(st - 1) == 0x0A &&
+        !(st >= 2 && base.codeUnitAt(st - 2) == 0x0A)) {
+      r = r.copyWith(start: st - 1, before: '\n\n');
+    }
+    if (item < spans.length - 1 &&
+        en + 1 < base.length &&
+        base.codeUnitAt(en) == 0x0A &&
+        base.codeUnitAt(en + 1) != 0x0A) {
+      r = r.copyWith(end: en + 1, after: '\n\n');
+    }
+    return r;
   }
 
   bool _canOpen(LiveLayout layout) =>
@@ -245,6 +354,13 @@ class LiveEditor extends ChangeNotifier {
       return;
     }
     final f = field.value;
+    final item = s.itemRange;
+    if (item != null) {
+      final first = f.text.substring(0, lineAt(f.text, 0).$2);
+      s.range = f.text.isNotEmpty && !startsListItem(first)
+          ? s.itemWide!
+          : item;
+    }
     final composed = composeLive(s.base, s.range, f.text);
     final off = s.range.fieldOffset(f.text);
     final len = composed.length;
@@ -281,38 +397,49 @@ class LiveEditor extends ChangeNotifier {
     c.liveHold = false;
   }
 
-  /// Closes the open block (its text is in the buffer already). An emptied block takes
-  /// the blank lines in front of it along (the user deleted the block). The caller
-  /// re-parses. [keepFocus]: another block opens right away (the keyboard stays).
-  /// [tidy]: false when the buffer must not change any more (read-only, history).
+  /// Closes the open block (its text is in the buffer already). A last line that is only
+  /// a list / quote marker this session added goes (Enter, then 완료). An emptied block
+  /// takes the blank lines around it along (the user deleted the block); the blocks on
+  /// both sides stay apart. The caller re-parses. [keepFocus]: another block opens right
+  /// away (the keyboard stays). [tidy]: false when the buffer must not change any more
+  /// (read-only, history).
   void close({bool keepFocus = false, bool tidy = true}) {
     final s = session;
     if (s == null) return;
-    if (tidy &&
-        c.canEdit &&
-        !s.range.pending &&
-        field.text.isEmpty &&
-        c.text.text == s.expect) {
-      final base = s.base;
-      var a = s.range.start;
-      var b = s.range.end;
-      if (a > 0) {
-        while (a > 0 && base.codeUnitAt(a - 1) == 0x0A) {
-          a--;
-        }
-      } else {
-        while (b < base.length && base.codeUnitAt(b) == 0x0A) {
-          b++;
-        }
-      }
-      if (a != s.range.start || b != s.range.end) {
-        s.range = LiveRange(start: a, end: b);
+    if (tidy && c.canEdit && c.text.text == s.expect) {
+      _dropAddedMarkerLine(s);
+      if (!s.range.pending && field.text.isEmpty && c.text.text == s.expect) {
+        final u = s.unit;
+        final item =
+            s.itemRange != null &&
+            u != null &&
+            u.item! < s.layout.items[u.block]!.length - 1;
+        s
+          ..itemRange = null
+          ..range = emptiedRange(s.base, s.coreStart, s.coreEnd, item: item);
         _write();
       }
     }
     _end();
     if (!keepFocus) focus.unfocus();
     notifyListeners();
+  }
+
+  void _dropAddedMarkerLine(LiveSession s) {
+    if (s.kind != LiveKind.prose) return;
+    final text = field.text;
+    final nl = text.lastIndexOf('\n');
+    if (nl < 0) return;
+    final last = text.substring(nl + 1);
+    if (!isBareMarkerLine(last)) return;
+    if (s.opened.endsWith('\n$last')) return;
+    _setting = true;
+    field.value = TextEditingValue(
+      text: text.substring(0, nl),
+      selection: TextSelection.collapsed(offset: nl),
+    );
+    _setting = false;
+    _write();
   }
 
   /// Runs a toolbar / key edit on the field: the IME composition is finished first, the
@@ -328,6 +455,36 @@ class LiveEditor extends ChangeNotifier {
       field.value = next;
     }
     c.undo.seal();
+  }
+
+  /// Enter made a new paragraph inside the field (a large document, a split that cannot
+  /// happen — 24.17 L′1, L′2): a text line right after the range gets a blank line in
+  /// front, so the new paragraph does not run into it; on a setext title the paragraph
+  /// goes after the underline. The field's value to use instead, or null.
+  TextEditingValue? paragraphInField(TextEditingValue old) {
+    final s = session;
+    if (s == null) return null;
+    if (!s.spacedAfter &&
+        !s.range.pending &&
+        s.itemRange == null &&
+        s.range.after.isEmpty &&
+        textOnNextLine(s.base, s.range.end)) {
+      s
+        ..range = s.range.copyWith(after: '\n')
+        ..spacedAfter = true;
+    }
+    if (s.setext) {
+      final t = old.text;
+      final le = lineAt(t, old.selection.start).$2;
+      if (le < t.length) {
+        final out = '$t\n\n';
+        return TextEditingValue(
+          text: out,
+          selection: TextSelection.collapsed(offset: out.length),
+        );
+      }
+    }
+    return null;
   }
 
   /// Shift+Enter.
@@ -348,28 +505,7 @@ class LiveEditor extends ChangeNotifier {
         ? stripFirstMarker(field.value)
         : null;
     if (strip != null) {
-      final item = s.unit?.item;
-      if (item != null && !s.widened) {
-        final spans = s.layout.items[s.unit!.block]!;
-        final base = s.base;
-        var r = s.range;
-        final st = r.start;
-        final en = r.end;
-        if (item > 0 &&
-            st >= 1 &&
-            base.codeUnitAt(st - 1) == 0x0A &&
-            !(st >= 2 && base.codeUnitAt(st - 2) == 0x0A)) {
-          r = r.copyWith(start: st - 1, before: '\n\n');
-        }
-        if (item < spans.length - 1 &&
-            en + 1 < base.length &&
-            base.codeUnitAt(en) == 0x0A &&
-            base.codeUnitAt(en + 1) != 0x0A) {
-          r = r.copyWith(end: en + 1, after: '\n\n');
-        }
-        s.range = r;
-        s.widened = true;
-      }
+      // A list item that loses its marker stands apart (_write widens its range).
       c.undo.seal();
       field.value = strip.$1;
       c.undo.seal();
@@ -378,6 +514,11 @@ class LiveEditor extends ChangeNotifier {
     // Join with the unit before.
     final prev = _unitBefore(s);
     if (prev == null) return null;
+    if (s.range.pending && field.text.isEmpty) {
+      // An empty new block goes; the caret goes back to the block before.
+      close(keepFocus: true);
+      return prev.end;
+    }
     final joinable =
         s.kind == LiveKind.prose &&
         prev.kind == LiveKind.prose &&
@@ -385,25 +526,28 @@ class LiveEditor extends ChangeNotifier {
         !s.setext &&
         !prev.definition;
     if (!joinable) {
-      if (field.text.isEmpty && !s.range.pending) {
+      if (field.text.isEmpty) {
         // An empty block after a code block: it goes, the caret goes back.
-        close(keepFocus: true);
-        return prev.end;
-      }
-      if (field.text.isEmpty && s.range.pending) {
         close(keepFocus: true);
         return prev.end;
       }
       return null;
     }
     final prevText = s.base.substring(prev.start, prev.end);
-    s.range = LiveRange(
-      start: prev.start,
-      end: s.range.end,
-      after: s.range.after,
-    );
-    s.unit = prev;
-    s.widened = true;
+    // The range now runs from the block before to this one's end; what was between
+    // (blank lines, a widened item's separators) goes — that is the join.
+    s
+      ..range = LiveRange(
+        start: prev.start,
+        end: s.range.end,
+        after: s.range.pending ? '' : s.range.after,
+      )
+      ..coreStart = prev.start
+      ..coreEnd = s.coreEnd < prev.end ? prev.end : s.coreEnd
+      ..itemRange = null
+      ..unit = prev
+      ..setext = false
+      ..opened = '$prevText${s.opened}';
     c.undo.seal();
     final joined = '$prevText${field.text}';
     if (joined == field.text) {

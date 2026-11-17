@@ -92,6 +92,7 @@ abstract final class MdStrings {
   static const String liveDefinition = '정의';
   static const String liveLinkDefinition = '링크 정의';
   static const String liveTooLong = '이 블록은 길어서 원문에서 고쳐요';
+  static const String liveHint = '글을 누르면 바로 고칠 수 있어요';
   static const String linkEditBlock = '이 블록 고치기';
   static const String liveToolbar = '서식';
   static const String liveDone = '완료';

@@ -2,12 +2,17 @@
 // U′14). The field shows the markdown source of the open block in place, styled like the
 // block (heading size, faded markers, monospace code); the toolbar sits under the view,
 // above the keyboard, while a block is open.
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../markdown_keys.dart';
+import '../parse/md_document.dart';
+import '../parse/md_model.dart';
+import '../render/md_blocks.dart';
 import '../render/md_style.dart';
 import '../strings_ko.dart';
 import 'live_edit.dart';
@@ -23,7 +28,13 @@ final class LiveFieldActions {
     required this.onCommit,
     required this.onUndo,
     required this.onRedo,
+    this.onParagraph,
   });
+
+  /// Enter that starts a new paragraph (or leaves a list on its last line, [leave]):
+  /// the field's value to use instead of the default one, or null (24.17 L′1).
+  final TextEditingValue? Function(TextEditingValue old, {required bool leave})?
+  onParagraph;
 
   /// Backspace with the caret at offset 0.
   final VoidCallback onBackspaceAtStart;
@@ -129,6 +140,17 @@ class LiveBlockField extends StatelessWidget {
       ..style = s
       ..kind = kind;
     final base = prose ? s.body : s.codeBlock.copyWith(color: t.textPrimary);
+    final unit = session?.unit;
+    final nodes = unit == null || unit.block >= session!.doc.blocks.length
+        ? const <MdNode>[]
+        : session.doc.blocks[unit.block].nodes;
+    // A table or a math block is hard to read as source: it is drawn under the field
+    // while it is edited (24.17 L′10).
+    final preview =
+        unit != null &&
+        unit.item == null &&
+        nodes.length == 1 &&
+        (nodes.single is MdTable || nodes.single is MdMathBlock);
     return KeyedSubtree(
       key: MarkdownKeys.liveField,
       child: Container(
@@ -153,43 +175,138 @@ class LiveBlockField extends StatelessWidget {
               },
             ),
           },
-          child: Focus(
-            canRequestFocus: false,
-            skipTraversal: true,
-            onKeyEvent: _onKey,
-            child: TextField(
-              key: editor.fieldKey,
-              controller: editor.field,
-              focusNode: editor.focus,
-              maxLines: null,
-              minLines: 1,
-              keyboardType: TextInputType.multiline,
-              textInputAction: TextInputAction.newline,
-              autocorrect: prose,
-              enableSuggestions: prose,
-              smartDashesType: SmartDashesType.disabled,
-              smartQuotesType: SmartQuotesType.disabled,
-              style: base,
-              cursorColor: t.accent,
-              scrollPadding: const EdgeInsets.fromLTRB(20, 48, 20, 72),
-              inputFormatters: [
-                const LineFeedFormatter(),
-                LiveEnterFormatter(() => editor.session?.kind ?? LiveKind.code),
-              ],
-              decoration: InputDecoration(
-                isCollapsed: true,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                filled: false,
-                contentPadding: const EdgeInsets.symmetric(vertical: 6),
-                hintText: session?.range.pending ?? false
-                    ? MdStrings.livePlaceholder
-                    : null,
-                hintStyle: base.copyWith(color: t.textTertiary),
-              ),
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _textField(context, base, prose, session),
+              if (preview)
+                _LivePreview(key: MarkdownKeys.livePreview, editor: editor),
+            ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _textField(
+    BuildContext context,
+    TextStyle base,
+    bool prose,
+    LiveSession? session,
+  ) {
+    final t = MdStyle.of(context).tokens;
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onKeyEvent: _onKey,
+      child: TextField(
+        key: editor.fieldKey,
+        controller: editor.field,
+        focusNode: editor.focus,
+        maxLines: null,
+        minLines: 1,
+        keyboardType: TextInputType.multiline,
+        textInputAction: TextInputAction.newline,
+        autocorrect: prose,
+        enableSuggestions: prose,
+        smartDashesType: SmartDashesType.disabled,
+        smartQuotesType: SmartQuotesType.disabled,
+        style: base,
+        cursorColor: t.accent,
+        scrollPadding: const EdgeInsets.fromLTRB(20, 48, 20, 72),
+        inputFormatters: [
+          const LineFeedFormatter(),
+          LiveEnterFormatter(
+            () => editor.session?.kind ?? LiveKind.code,
+            onParagraph: actions.onParagraph,
+          ),
+        ],
+        decoration: InputDecoration(
+          isCollapsed: true,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          filled: false,
+          contentPadding: const EdgeInsets.symmetric(vertical: 6),
+          hintText: session?.range.pending ?? false
+              ? MdStrings.livePlaceholder
+              : null,
+          hintStyle: base.copyWith(color: t.textTertiary),
+        ),
+      ),
+    );
+  }
+}
+
+/// The open table / math block drawn from the field's text, a moment after typing stops.
+class _LivePreview extends StatefulWidget {
+  const _LivePreview({super.key, required this.editor});
+
+  final LiveEditor editor;
+
+  @override
+  State<_LivePreview> createState() => _LivePreviewState();
+}
+
+class _LivePreviewState extends State<_LivePreview> {
+  List<MdNode> _nodes = const [];
+  String? _text;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _parse();
+    widget.editor.field.addListener(_onField);
+  }
+
+  @override
+  void didUpdateWidget(_LivePreview old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.editor, widget.editor)) {
+      old.editor.field.removeListener(_onField);
+      widget.editor.field.addListener(_onField);
+      _parse();
+    }
+  }
+
+  void _onField() {
+    if (widget.editor.field.text == _text) return;
+    _timer?.cancel();
+    _timer = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) setState(_parse);
+    });
+  }
+
+  void _parse() {
+    final text = widget.editor.field.text;
+    _text = text;
+    _nodes = [for (final b in parseMarkdown(text).blocks) ...b.nodes];
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    widget.editor.field.removeListener(_onField);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = MdStyle.of(context).tokens;
+    if (_nodes.isEmpty) return const SizedBox.shrink();
+    return IgnorePointer(
+      child: Container(
+        margin: const EdgeInsets.only(top: 6, bottom: 4),
+        padding: const EdgeInsets.only(top: 8),
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: t.hairline)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [for (final n in _nodes) MdNodeView(node: n)],
         ),
       ),
     );
@@ -409,10 +526,36 @@ class LiveToolbar extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    children: row,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.fromLTRB(6, 0, 24, 0),
+                          children: row,
+                        ),
+                      ),
+                      // The row scrolls on a phone: its end fades, so a cut button
+                      // reads as 'more this way' (24.17 L′15).
+                      Positioned(
+                        top: 0,
+                        bottom: 0,
+                        right: 0,
+                        width: 24,
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  t.toolbar.withValues(alpha: 0),
+                                  t.toolbar,
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 Container(width: 1, height: 28, color: t.hairline),

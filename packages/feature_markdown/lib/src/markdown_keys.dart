@@ -145,6 +145,15 @@ abstract final class MarkdownKeys {
   static ValueKey<String> liveToolbarButton(String name) =>
       ValueKey('md.live.toolbar.$name');
 
+  /// The drawn table / math block under the open field (24.17 L′10).
+  static const ValueKey<String> livePreview = ValueKey('md.live.preview');
+
+  /// The view's background while live editing (a tap there closes the open block).
+  static const ValueKey<String> liveOutside = ValueKey('md.live.outside');
+
+  /// The one-time hint '글을 누르면 바로 고칠 수 있어요' (24.17 L′12).
+  static const ValueKey<String> liveHint = ValueKey('md.live.hint');
+
   /// [이 블록 고치기] of the link sheet.
   static const ValueKey<String> linkSheetEdit = ValueKey('md.linkSheet.edit');
 

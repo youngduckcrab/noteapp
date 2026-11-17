@@ -236,7 +236,8 @@ Future<void> runMarkdownEndToEnd(WidgetTester tester, CoreModule core) async {
   await _frames(tester);
 
   // 5. 새로 만들기 › 새 MD 문서 → name dialog → 만들기 → 보기 with the live field: type in
-  //    place (Korean + English), Enter, a second paragraph (v2.18-md, MD-T33).
+  //    place (Korean + English), Enter (a new block), a second paragraph (v2.18-md,
+  //    MD-T33, 24.17 L′1).
   await _tap(tester, _newMenu());
   await _tap(tester, find.byKey(const Key('library.new.markdown')));
   await _tap(tester, find.text('만들기'));
@@ -255,9 +256,22 @@ Future<void> runMarkdownEndToEnd(WidgetTester tester, CoreModule core) async {
   const first = '처음 적는 문단입니다. The first paragraph.';
   ime(first);
   await _frames(tester);
-  ime('$first\n'); // Enter: a new paragraph line in the same field
+  ime('$first\n'); // Enter: the paragraph is drawn, a new block opens after it
   await _frames(tester);
-  ime('$first\n\n둘째 문단');
+  expect(find.text(first), findsOneWidget);
+  expect(
+    tester
+        .widget<TextField>(
+          find.descendant(
+            of: find.byKey(MarkdownKeys.liveField),
+            matching: find.byType(TextField),
+          ),
+        )
+        .controller!
+        .text,
+    '',
+  );
+  ime('둘째 문단');
   await _frames(tester);
   // [←] closes the block (the rendered text keeps the full width — it once collapsed
   // to a 0 px column, one character per line), [←] again leaves.

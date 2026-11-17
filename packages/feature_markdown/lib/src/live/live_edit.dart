@@ -57,6 +57,31 @@ final class LiveRange {
 String composeLive(String base, LiveRange r, String field) =>
     base.replaceRange(r.start, r.end, r.replacement(field));
 
+/// The next line after offset [end] (which sits on a '\n') holds text: a block written
+/// at [end] would run into it (a heading or a rule followed directly by a paragraph line).
+bool textOnNextLine(String base, int end) {
+  if (end >= base.length || base.codeUnitAt(end) != 0x0A) return false;
+  var e = base.indexOf('\n', end + 1);
+  if (e < 0) e = base.length;
+  return base.substring(end + 1, e).trim().isNotEmpty;
+}
+
+/// The range of a new block right after a block that ends at [end] (Enter at the end of
+/// a block — 24.17 L′1): a blank line in front, and one after when the next line holds
+/// text, so the new paragraph never runs into the block below.
+LiveRange pendingAfter(String base, int end) => LiveRange(
+  start: end,
+  end: end,
+  before: '\n\n',
+  after: textOnNextLine(base, end) ? '\n' : '',
+  pending: true,
+);
+
+/// The range of a new block right in front of the block that starts at [start] (Enter
+/// at the very start of a block).
+LiveRange pendingBefore(int start) =>
+    LiveRange(start: start, end: start, after: '\n\n', pending: true);
+
 /// The range of a new block at the end of the document [base] (after its last block,
 /// which ends at [lastBlockEnd]; -1 = no blocks): a blank line in front unless empty.
 LiveRange pendingAtEnd(String base, int lastBlockEnd) {
@@ -81,6 +106,79 @@ final RegExp _quoteLine = RegExp(r'^([ \t]{0,3}(?:>[ \t]?)+)');
 final RegExp _headingLine = RegExp(r'^ {0,3}#{1,6}(?:[ \t]+|$)');
 final RegExp _fenceLine = RegExp(r'^[ \t]*(`{3,}|~{3,})');
 
+/// A thematic break (`---`, `* * *`, `_ _ _`): not a list item even though it starts
+/// with `-` / `*` (24.17 L′7).
+final RegExp kLiveRuleLine = RegExp(r'^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$');
+
+/// The list match of [line], or null (a thematic break is no list line).
+RegExpMatch? _listMatch(String line) =>
+    kLiveRuleLine.hasMatch(line) ? null : kLiveListLine.firstMatch(line);
+
+/// [offset] of [before] in [after], where the two differ in one place: unchanged in
+/// front of it, shifted by the length change behind it, null inside it.
+int? mapThroughChange(String before, String after, int offset) {
+  if (before == after) return offset;
+  final minLen = before.length < after.length ? before.length : after.length;
+  var p = 0;
+  while (p < minLen && before.codeUnitAt(p) == after.codeUnitAt(p)) {
+    p++;
+  }
+  var q = 0;
+  while (q < minLen - p &&
+      before.codeUnitAt(before.length - 1 - q) ==
+          after.codeUnitAt(after.length - 1 - q)) {
+    q++;
+  }
+  if (offset < p) return offset;
+  if (offset >= before.length - q) return offset + after.length - before.length;
+  return null;
+}
+
+/// [line] starts a list item (a thematic break does not).
+bool startsListItem(String line) => _listMatch(line) != null;
+
+/// [line] is only a list marker (with its task box) or a quote marker.
+bool isBareMarkerLine(String line) {
+  final l = _listMatch(line);
+  if (l != null) return line.substring(l.group(0)!.length).trim().isEmpty;
+  final q = _quoteLine.firstMatch(line);
+  return q != null && line.substring(q.group(0)!.length).trim().isEmpty;
+}
+
+/// What the range of an emptied block becomes (the block is [cs, ce) of [base]): the
+/// block and the blank lines around it go, and the blocks on both sides stay apart — a
+/// blank line between them, as there was on at least one side (24.17 L′5). [item]: a
+/// list item with an item after it; it goes with the line break after it, so the items
+/// around it stay one list.
+LiveRange emptiedRange(String base, int cs, int ce, {bool item = false}) {
+  bool space(int c) => c == 0x0A || c == 0x20 || c == 0x09;
+  var a = cs;
+  var before = 0;
+  while (a > 0 && space(base.codeUnitAt(a - 1))) {
+    if (base.codeUnitAt(a - 1) == 0x0A) before++;
+    a--;
+  }
+  var b = ce;
+  var after = 0;
+  while (b < base.length && space(base.codeUnitAt(b))) {
+    if (base.codeUnitAt(b) == 0x0A) after++;
+    b++;
+  }
+  // Partial lines (spaces in front of the block) stay where they are.
+  while (a < cs && base.codeUnitAt(a) != 0x0A) {
+    a++;
+  }
+  while (b > ce && base.codeUnitAt(b - 1) != 0x0A) {
+    b--;
+  }
+  if (a == 0) return LiveRange(start: 0, end: b);
+  if (b >= base.length) return LiveRange(start: a, end: ce);
+  if (item) return LiveRange(start: cs, end: b);
+  if (after >= 2) return LiveRange(start: a, end: ce);
+  if (before >= 2) return LiveRange(start: cs, end: b);
+  return LiveRange(start: a, end: b, after: '\n\n');
+}
+
 /// [start, end) of the line holding [offset].
 (int, int) lineAt(String text, int offset) {
   final o = offset.clamp(0, text.length);
@@ -93,7 +191,7 @@ final RegExp _fenceLine = RegExp(r'^[ \t]*(`{3,}|~{3,})');
 /// The marker at the start of [line] (heading `# `, list `- ` / `1. ` + task box,
 /// quote `> `): its length, or 0.
 int lineMarkerLength(String line) {
-  final l = kLiveListLine.firstMatch(line);
+  final l = _listMatch(line);
   if (l != null) return l.group(0)!.length;
   final h = _headingLine.firstMatch(line);
   if (h != null) return h.group(0)!.length;
@@ -128,24 +226,58 @@ TextEditingValue _replace(
 
 /// The field after Enter at [v]'s (collapsed) caret, or null for a plain newline.
 /// Returning [v] itself means 'do nothing'.
-TextEditingValue? liveEnter(TextEditingValue v, LiveKind kind) {
+TextEditingValue? liveEnter(TextEditingValue v, LiveKind kind) =>
+    _enter(v, kind).$1;
+
+/// Enter at [v]'s caret starts a new paragraph (not a list / quote line, not a code
+/// field or fence, not an empty line): the editor may move it to a new block
+/// (24.17 L′1).
+bool liveEnterIsParagraph(TextEditingValue v, LiveKind kind) =>
+    _enter(v, kind).$2 == LiveBreak.paragraph;
+
+/// What an Enter does besides its edit.
+enum LiveBreak {
+  none,
+
+  /// Starts a new paragraph.
+  paragraph,
+
+  /// Leaves a list or quote on an empty item / quote line (not the field's first line).
+  leave,
+}
+
+/// An ordered list line inside a paragraph (`2024. was a good year` on its second line)
+/// is paragraph text: only a list line, a blank line, the field's start or the number 1
+/// starts a list there (CommonMark 5.2).
+bool _orderedStartsHere(String text, int ls, RegExpMatch list) {
+  if (list.group(3) == null || ls == 0) return true;
+  if (int.tryParse(list.group(3)!) == 1) return true;
+  final (ps, pe) = lineAt(text, ls - 1);
+  final prev = text.substring(ps, pe);
+  if (prev.trim().isEmpty) return true;
+  if (prev.startsWith(' ') || prev.startsWith('\t')) return true;
+  return _listMatch(prev) != null;
+}
+
+(TextEditingValue?, LiveBreak) _enter(TextEditingValue v, LiveKind kind) {
   final text = v.text;
   final sel = v.selection;
-  if (!sel.isValid) return null;
-  if (kind == LiveKind.code) return null;
-  if (text.isEmpty) return v;
+  if (!sel.isValid) return (null, LiveBreak.none);
+  if (kind == LiveKind.code) return (null, LiveBreak.none);
+  if (text.isEmpty) return (v, LiveBreak.none);
   final caret = sel.start;
-  if (_insideFence(text, caret)) return null;
+  if (_insideFence(text, caret)) return (null, LiveBreak.none);
   final (ls, le) = lineAt(text, caret);
   final line = text.substring(ls, le);
-  final list = kLiveListLine.firstMatch(line);
+  var list = _listMatch(line);
+  if (list != null && !_orderedStartsHere(text, ls, list)) list = null;
   if (list != null) {
     final prefix = list.group(0)!;
     final content = line.substring(prefix.length);
     if (content.trim().isEmpty) {
       // An empty item: leave the list (the marker goes, a blank line ends the list).
-      if (ls == 0) return _replace(text, ls, le, '', 0);
-      return _replace(text, ls, le, '\n', ls + 1);
+      if (ls == 0) return (_replace(text, ls, le, '', 0), LiveBreak.none);
+      return (_replace(text, ls, le, '\n', ls + 1), LiveBreak.leave);
     }
     final indent = list.group(1)!;
     final number = list.group(3);
@@ -156,37 +288,51 @@ TextEditingValue? liveEnter(TextEditingValue v, LiveKind kind) {
     final task = list.group(6) == null ? '' : '[ ] ';
     final next = '\n$indent$marker$spaces$task';
     final at = caret < ls + prefix.length ? ls + prefix.length : caret;
-    return _replace(
-      text,
-      at,
-      sel.end < at ? at : sel.end,
-      next,
-      at + next.length,
+    return (
+      _replace(text, at, sel.end < at ? at : sel.end, next, at + next.length),
+      LiveBreak.none,
     );
   }
   final quote = _quoteLine.firstMatch(line);
   if (quote != null) {
     final prefix = quote.group(0)!;
     if (line.substring(prefix.length).trim().isEmpty) {
-      if (ls == 0) return _replace(text, ls, le, '', 0);
-      return _replace(text, ls, le, '\n', ls + 1);
+      if (ls == 0) return (_replace(text, ls, le, '', 0), LiveBreak.none);
+      return (_replace(text, ls, le, '\n', ls + 1), LiveBreak.leave);
     }
     final p = prefix.endsWith(' ') ? prefix : '$prefix ';
     final at = caret < ls + prefix.length ? ls + prefix.length : caret;
-    return _replace(text, at, sel.end, '\n$p', at + 1 + p.length);
+    return (
+      _replace(
+        text,
+        at,
+        sel.end < at ? at : sel.end,
+        '\n$p',
+        at + 1 + p.length,
+      ),
+      LiveBreak.none,
+    );
   }
   if (line.isNotEmpty && (line.startsWith(' ') || line.startsWith('\t'))) {
     // A continuation line (inside a list item): keep its indent.
     final ws = line.substring(0, line.length - line.trimLeft().length);
-    return _replace(text, caret, sel.end, '\n$ws', caret + 1 + ws.length);
+    return (
+      _replace(text, caret, sel.end, '\n$ws', caret + 1 + ws.length),
+      LiveBreak.none,
+    );
   }
   if (line.trim().isEmpty) {
     // Already on an empty line: one more blank line would only add bytes.
     final before = ls >= 1 ? text.substring(0, ls - 1) : '';
-    if (ls == 0 || before.endsWith('\n') || before.isEmpty) return v;
-    return _replace(text, caret, sel.end, '\n', caret + 1);
+    if (ls == 0 || before.endsWith('\n') || before.isEmpty) {
+      return (v, LiveBreak.none);
+    }
+    return (_replace(text, caret, sel.end, '\n', caret + 1), LiveBreak.none);
   }
-  return _replace(text, caret, sel.end, '\n\n', caret + 2);
+  return (
+    _replace(text, caret, sel.end, '\n\n', caret + 2),
+    LiveBreak.paragraph,
+  );
 }
 
 /// Shift+Enter: a line break inside the block (a plain newline; in a list item the new
@@ -202,7 +348,7 @@ TextEditingValue liveShiftEnter(TextEditingValue v, LiveKind kind) {
     if (_headingLine.hasMatch(line)) {
       return liveEnter(v, kind) ?? v;
     }
-    final list = kLiveListLine.firstMatch(line);
+    final list = _listMatch(line);
     if (list != null) {
       final pad = ' ' * (list.group(1)!.length + list.group(2)!.length + 1);
       return _replace(
@@ -287,9 +433,14 @@ class LineFeedFormatter extends TextInputFormatter {
 /// [liveEnter]'s result. Anything else passes (Korean IME: the keyboard ends the
 /// syllable before it sends the newline, so composing text is never touched).
 class LiveEnterFormatter extends TextInputFormatter {
-  LiveEnterFormatter(this.kind);
+  LiveEnterFormatter(this.kind, {this.onParagraph});
 
   final LiveKind Function() kind;
+
+  /// Enter that starts a new paragraph ([liveEnterIsParagraph]): the value to use
+  /// instead of [liveEnter]'s, or null for that (24.17 L′1).
+  final TextEditingValue? Function(TextEditingValue old, {required bool leave})?
+  onParagraph;
 
   @override
   TextEditingValue formatEditUpdate(
@@ -309,10 +460,13 @@ class LiveEnterFormatter extends TextInputFormatter {
         n.substring(sel.start + 1) != o.substring(sel.end)) {
       return newValue;
     }
-    final out = liveEnter(
-      oldValue.copyWith(composing: TextRange.empty),
-      kind(),
-    );
+    final old = oldValue.copyWith(composing: TextRange.empty);
+    final (out, brk) = _enter(old, kind());
+    final hook = onParagraph;
+    if (brk != LiveBreak.none && hook != null) {
+      final instead = hook(old, leave: brk == LiveBreak.leave);
+      if (instead != null) return instead;
+    }
     return out ?? newValue;
   }
 }
@@ -380,7 +534,7 @@ TextEditingValue insertLink(TextEditingValue v) {
 enum LinePrefix { bullet, numbered, task, quote, h1, h2, h3 }
 
 String? _kindOf(String line) {
-  final l = kLiveListLine.firstMatch(line);
+  final l = _listMatch(line);
   if (l != null) {
     if (l.group(6) != null) return 'task';
     return l.group(3) != null ? 'numbered' : 'bullet';
@@ -416,7 +570,7 @@ TextEditingValue toggleLinePrefix(TextEditingValue v, LinePrefix p) {
     }
     final indent = _kindOf(l) == null || _kindOf(l)!.startsWith('h')
         ? ''
-        : (kLiveListLine.firstMatch(l)?.group(1) ?? '');
+        : (_listMatch(l)?.group(1) ?? '');
     final bare = l.substring(lineMarkerLength(l));
     if (all) {
       out.add('$indent$bare');
@@ -477,11 +631,11 @@ TextEditingValue insertTemplate(TextEditingValue v, LiveTemplate t) {
 /// above (`1. ` → 3, `10. ` → 4, `- ` → 2), else 2.
 int indentWidthAt(String text, int offset) {
   var (ls, _) = lineAt(text, offset);
-  final own = kLiveListLine.firstMatch(text.substring(ls, lineAt(text, ls).$2));
+  final own = _listMatch(text.substring(ls, lineAt(text, ls).$2));
   final ownIndent = own?.group(1)?.length ?? -1;
   while (ls > 0) {
     final (ps, pe) = lineAt(text, ls - 1);
-    final m = kLiveListLine.firstMatch(text.substring(ps, pe));
+    final m = _listMatch(text.substring(ps, pe));
     if (m != null && (ownIndent < 0 || m.group(1)!.length <= ownIndent)) {
       return m.group(2)!.length +
           (m.group(5)!.isEmpty ? 1 : m.group(5)!.length);

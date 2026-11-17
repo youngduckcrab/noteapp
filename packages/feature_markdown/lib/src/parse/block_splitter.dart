@@ -253,6 +253,30 @@ List<SourceBlock> splitBlocks(String text) {
   return out;
 }
 
+/// [block] (the source of the last block of a text) is a fence or an HTML block with
+/// no closer: it runs to the end of the text, so anything written after it — even after
+/// a blank line — lands inside it (24.17 L′4).
+bool runsToEnd(String block) {
+  final lines = block.split('\n');
+  final first = lines.first;
+  final fence = _fenceOpen.firstMatch(first);
+  if (fence != null &&
+      !(fence.group(1)!.startsWith('`') && fence.group(2)!.contains('`'))) {
+    return lines.length < 2 || !_closesFence(lines.last, fence.group(1)!);
+  }
+  if (_htmlComment.hasMatch(first) || _htmlRaw.hasMatch(first)) {
+    final raw = _htmlRaw.firstMatch(first);
+    final close = raw == null ? '-->' : '</${raw.group(1)!.toLowerCase()}>';
+    final last = lines.last.toLowerCase();
+    if (lines.length == 1) {
+      final open = raw == null ? first.indexOf('<!--') + 4 : 0;
+      return !last.substring(open).contains(close);
+    }
+    return !last.contains(close);
+  }
+  return false;
+}
+
 bool _closesFence(String line, String marker) {
   final t = line.trim();
   if (t.isEmpty || t[0] != marker[0]) return false;

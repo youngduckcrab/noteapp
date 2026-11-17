@@ -102,9 +102,22 @@ void main() {
       await _autosave(tester);
       // No leading newline: an empty document's first block has no separator.
       expect(await h.stored(tester, id), '안녕 world');
-      // Enter starts a new paragraph line in the same field (24.15 U′5).
+      // Enter at the end makes a new block after this one: the paragraph is drawn, the
+      // same field (and keyboard) moves on to an empty block (24.17 L′1).
+      final state = tester.state(
+        find.descendant(of: _field, matching: find.byType(EditableText)),
+      );
       await _typeAtCaret(tester, '\n');
-      expect(_fieldText(tester), '안녕 world\n\n');
+      await settleMd(tester, 2);
+      expect(_fieldText(tester), '');
+      expect(find.text('안녕 world'), findsOneWidget);
+      expect(tester.testTextInput.isVisible, isTrue);
+      expect(
+        tester.state(
+          find.descendant(of: _field, matching: find.byType(EditableText)),
+        ),
+        same(state),
+      );
       await _typeAtCaret(tester, '둘째 문단');
       await _done(tester);
       expect(_field, findsNothing);
@@ -182,8 +195,12 @@ void main() {
     expect(_fieldText(tester), '- 배\n- ');
     await _typeAtCaret(tester, '감');
     await _typeAtCaret(tester, '\n');
+    expect(_fieldText(tester), '- 배\n- 감\n- ');
+    // Enter on the empty last item leaves the list: a new block after it (24.17 L′1).
     await _typeAtCaret(tester, '\n');
-    expect(_fieldText(tester), '- 배\n- 감\n\n');
+    await settleMd(tester, 2);
+    expect(_fieldText(tester), '');
+    expect(find.text('감'), findsOneWidget);
     await _typeAtCaret(tester, '문단');
     await _done(tester);
     await _autosave(tester);
