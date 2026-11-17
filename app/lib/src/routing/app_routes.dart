@@ -12,6 +12,11 @@ abstract final class AppRoutes {
   static const String folderPattern = '/folders/:folderId';
   static const String notePattern = '/notes/:noteId';
   static const String settings = '/settings';
+
+  /// (v2.17-md, C217M-13) The MD 문서 screen: `/md/:noteId?q=<query>&edit=1`.
+  static const String markdownPattern = '/md/:noteId';
+  static const String markdownQueryKey = 'q';
+  static const String markdownEditKey = 'edit';
   static const String pageQueryKey = 'page';
   static const String focusQueryKey = 'focus';
 
@@ -41,6 +46,17 @@ abstract final class AppRoutes {
     if (focus == null || !FocusRectCodec.canEncode(focus)) return page;
     return '$page&$focusQueryKey=${FocusRectCodec.encode(focus)}';
   }
+}
+
+/// (v2.17-md) `'/md/<id>' [+ '?q=<query>'] [+ '&edit=1']` — an empty query is left out.
+String markdownRoute(String noteId, {String? query, bool edit = false}) {
+  final params = <String>[
+    if (query != null && query.isNotEmpty)
+      '${AppRoutes.markdownQueryKey}=${Uri.encodeQueryComponent(query)}',
+    if (edit) '${AppRoutes.markdownEditKey}=1',
+  ];
+  final path = '/md/${Uri.encodeComponent(noteId)}';
+  return params.isEmpty ? path : '$path?${params.join('&')}';
 }
 
 /// The `focus` query value `l,t,r,b` in page pt (6.8, S2-6).
@@ -150,4 +166,36 @@ final class EditorRouteArgs {
   String toString() =>
       'EditorRouteArgs(noteId: $noteId, initialPageId: $initialPageId, '
       'initialFocusRectPt: $initialFocusRectPt)';
+}
+
+/// (v2.17-md, C217M-13) Arguments of the MD 문서 route `/md/:noteId?q=&edit=1`.
+@immutable
+final class MarkdownRouteArgs {
+  const MarkdownRouteArgs({
+    required this.noteId,
+    this.initialQuery,
+    this.initialEdit = false,
+  });
+  final String noteId;
+
+  /// The library search text to land on (null = top).
+  final String? initialQuery;
+
+  /// Open in 편집 (a new document).
+  final bool initialEdit;
+
+  @override
+  bool operator ==(Object other) =>
+      other is MarkdownRouteArgs &&
+      other.noteId == noteId &&
+      other.initialQuery == initialQuery &&
+      other.initialEdit == initialEdit;
+
+  @override
+  int get hashCode => Object.hash(noteId, initialQuery, initialEdit);
+
+  @override
+  String toString() =>
+      'MarkdownRouteArgs(noteId: $noteId, initialQuery: $initialQuery, '
+      'initialEdit: $initialEdit)';
 }

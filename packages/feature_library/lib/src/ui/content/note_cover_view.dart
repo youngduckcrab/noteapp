@@ -13,6 +13,8 @@ import 'package:note_core/note_core.dart'
 import 'package:ui_kit/ui_kit.dart';
 
 import '../../appearance/cover_palette.dart';
+import '../../l10n/library_strings.dart';
+import '../../state/markdown_preview.dart';
 import '../../state/providers.dart';
 import '../../thumbnails/cover_thumbnail_scheduler.dart';
 import '../layout/library_metrics.dart';
@@ -71,6 +73,10 @@ class _NoteCoverViewState extends ConsumerState<NoteCoverView> {
   @override
   Widget build(BuildContext context) {
     final width = widget.width, height = widget.height;
+    // (v2.17-md, C217M-11) an MD 문서: a text page with its preview and the 'MD' mark.
+    if (widget.note.isMarkdown) {
+      return MarkdownCoverCard(note: widget.note, width: width, height: height);
+    }
     final placeholder = CoverPlaceholder(width: width, height: height);
     switch (widget.note.cover) {
       case FirstPageCover():
@@ -281,4 +287,114 @@ class _RuledPaperPainter extends CustomPainter {
   @override
   bool shouldRepaint(_RuledPaperPainter oldDelegate) =>
       oldDelegate.line != line;
+}
+
+/// (v2.17-md, C217M-11 — 08-markdown 9) The cover of an MD 문서: a paper page
+/// ([StyleTokens.inkSwatch], paper in every style and brightness) with the first line of
+/// the preview in bold and the next lines in [StyleTokens.paperInk], and the 'MD' mark at
+/// the bottom right. The preview is keyed by the note's updatedAt (never stale).
+class MarkdownCoverCard extends ConsumerWidget {
+  const MarkdownCoverCard({
+    super.key,
+    required this.note,
+    required this.width,
+    required this.height,
+  });
+
+  final Note note;
+  final double width, height;
+
+  static const Key previewKey = Key('library.tile.mdPreview');
+  static const Key badgeKey = Key('library.tile.mdBadge');
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = StyleTokens.of(context);
+    final preview = ref
+        .watch(
+          libraryMarkdownPreviewProvider((
+            noteId: note.id,
+            updatedAt: note.updatedAt,
+          )),
+        )
+        .value;
+    final lines = (preview ?? '').split('\n');
+    final first = lines.first;
+    final rest = lines.skip(1).join('\n');
+    final small = width < 120;
+    final base = TextStyle(
+      color: tokens.paperInk,
+      fontSize: small ? 8 : 10,
+      height: 1.35,
+    );
+    return SizedBox(
+      width: width,
+      height: height,
+      child: ColoredBox(
+        color: tokens.inkSwatch,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Padding(
+              padding: EdgeInsets.all(small ? 8 : 12),
+              child: Text.rich(
+                key: previewKey,
+                TextSpan(
+                  children: [
+                    if (first.isNotEmpty)
+                      TextSpan(
+                        text: first,
+                        style: base.copyWith(
+                          fontWeight: FontWeight.w700,
+                          fontSize: (small ? 8 : 10) + 2,
+                        ),
+                      ),
+                    if (rest.isNotEmpty) TextSpan(text: '\n$rest'),
+                  ],
+                ),
+                style: base,
+                overflow: TextOverflow.fade,
+              ),
+            ),
+            Positioned(
+              right: 6,
+              bottom: 6,
+              child: DecoratedBox(
+                key: badgeKey,
+                decoration: BoxDecoration(
+                  color: tokens.accentSoft,
+                  borderRadius: BorderRadius.circular(tokens.radiusSmall),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AppIcon(
+                        AppIconKind.markdownDoc,
+                        size: 12,
+                        color: tokens.onAccentSoft,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        LibraryStrings.markdownBadge,
+                        style: TextStyle(
+                          color: tokens.onAccentSoft,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

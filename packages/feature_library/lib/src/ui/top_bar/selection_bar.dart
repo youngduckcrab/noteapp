@@ -26,6 +26,7 @@ import '../../l10n/library_strings.dart';
 import '../../model/item_key.dart';
 import '../../model/section.dart';
 import '../../state/providers.dart';
+import '../feedback/library_snack_bar.dart';
 import '../layout/library_metrics.dart';
 import '../library_scope.dart';
 import '../menus/item_action_flows.dart';
@@ -75,6 +76,38 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
       if (ran) end();
     } finally {
       if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  /// (v2.17-md, C217M-11) MD 문서 are not exported as PDF: they are left out, with a
+  /// notice; only MD 문서 selected → the notice alone.
+  Future<void> _exportSelected(
+    LibraryPdfExportAction action,
+    List<Note> notes,
+    VoidCallback end,
+  ) async {
+    final ink = [
+      for (final n in notes)
+        if (!n.isMarkdown) n.id,
+    ];
+    final left = notes.length - ink.length;
+    final scope = LibraryScope.read(context);
+    if (ink.isEmpty) {
+      showLibrarySnackBar(
+        context,
+        message: LibraryStrings.pdfExportNeedsInkNote,
+        sizeClass: scope.sizeClass,
+      );
+      return;
+    }
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    await _export(action, ink, end);
+    if (left > 0 && messenger != null) {
+      showLibrarySnackBarOn(
+        messenger,
+        message: LibraryStrings.markdownLeftOutOfPdf(left),
+        sizeClass: scope.sizeClass,
+      );
     }
   }
 
@@ -190,9 +223,7 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
             disabledHint: LibraryStrings.exportNeedsNote,
             onPressed: selectedNotes.isEmpty || _exporting
                 ? null
-                : () => _export(exportAction, [
-                    for (final n in selectedNotes) n.id,
-                  ], end),
+                : () => _exportSelected(exportAction, selectedNotes, end),
           );
     final _BarAction trash = (
       icon: AppIconKind.trash,

@@ -15,6 +15,7 @@ class LibraryScope extends InheritedWidget {
     required this.openFolder,
     required this.openNote,
     required this.openNoteAt,
+    required this.openMarkdown,
     required this.openSettings,
     required this.openDrawer,
     required this.closeDrawer,
@@ -40,6 +41,11 @@ class LibraryScope extends InheritedWidget {
   /// (page + rect, note page pt), or onOpenNote(noteId) when it is null.
   final void Function(NoteId noteId, PageId pageId, Rect? focusRectPt)
   openNoteAt;
+
+  /// (v2.17-md, C217M-11) Closes the drawer first, then LibraryScreen.onOpenMarkdown
+  /// ([query]: the search to land on; [edit]: open in edit mode), or onOpenNote(noteId)
+  /// when it is null.
+  final void Function(NoteId noteId, {String? query, bool edit}) openMarkdown;
 
   /// Closes the drawer first, then LibraryScreen.onOpenSettings.
   final VoidCallback openSettings;
@@ -83,6 +89,7 @@ class LibraryScope extends InheritedWidget {
       openFolder != oldWidget.openFolder ||
       openNote != oldWidget.openNote ||
       openNoteAt != oldWidget.openNoteAt ||
+      openMarkdown != oldWidget.openMarkdown ||
       openSettings != oldWidget.openSettings ||
       openDrawer != oldWidget.openDrawer ||
       closeDrawer != oldWidget.closeDrawer ||

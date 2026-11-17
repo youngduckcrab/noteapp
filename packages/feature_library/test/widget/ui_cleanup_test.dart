@@ -203,11 +203,13 @@ void main() {
     );
   });
 
-  testWidgets('새로 만들기 without the PDF slot: 새 노트 · 새 폴더 only', (tester) async {
+  testWidgets('새로 만들기 without the PDF slot: 새 노트 · 새 폴더 · (v2.17-md) 새 MD '
+      '문서 only', (tester) async {
     await seed(tester);
     await pumpAt(tester);
     await openNewMenu(tester);
-    expect(find.byType(MenuItemButton), findsNWidgets(2));
+    expect(find.byType(MenuItemButton), findsNWidgets(3));
+    expect(find.text(LibraryStrings.newMarkdown), findsOneWidget);
     expect(find.text(LibraryStrings.importPdf), findsNothing);
     expect(find.text('준비 중'), findsNothing);
   });

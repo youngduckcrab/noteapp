@@ -114,7 +114,10 @@ final class CoverThumbnailScheduler {
   /// Remembers [note] as the latest version of a visible tile (asset / remote retries).
   void request(Note note) {
     if (!isEnabled || _disposed) return;
-    if (note.cover is! FirstPageCover || note.firstPageId == null) {
+    // (v2.17-md) an MD 문서 has no page thumbnail (its card draws the text).
+    if (note.isMarkdown ||
+        note.cover is! FirstPageCover ||
+        note.firstPageId == null) {
       // The tile's latest version needs no thumbnail: forget an older one so
       // an asset / remote retry does not draw it.
       _visible.remove(note.id);

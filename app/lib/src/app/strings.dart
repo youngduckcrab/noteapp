@@ -14,6 +14,10 @@ abstract final class AppStrings {
   static const String errorWidgetMessage = '이 부분을 표시하지 못했어요';
 
   static const String back = '뒤로';
+
+  /// (v2.17-md) The MD 문서 screen could not be loaded (web: its part file).
+  static const String markdownLoadFailed =
+      'MD 문서 화면을 불러오지 못했어요. 인터넷 연결을 확인하고 다시 열어 주세요';
   static const String close = '닫기';
   static const String settings = '설정';
 

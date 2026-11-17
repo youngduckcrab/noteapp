@@ -60,6 +60,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     screens: ref.watch(appScreenBuildersProvider),
     // (v2.14-ui split) The editor route takes the 필기 화면 스타일.
     wrapEditor: (editor) => EditorStyleScope(child: editor),
+    // (v2.17-md, C217M-13) /notes/<MD 문서 id> → /md/<id> (typed or old addresses).
+    isMarkdownNote: (noteId) {
+      try {
+        return ref
+            .read(noteStoreProvider)
+            .library
+            .getNote(noteId)
+            .then((note) => note?.isMarkdown ?? false, onError: (_) => false);
+      } on Object {
+        return false; // no store (yet): the editor route handles it
+      }
+    },
   );
   ref.onDispose(router.dispose);
   return router;

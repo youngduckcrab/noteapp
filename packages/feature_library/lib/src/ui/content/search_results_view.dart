@@ -11,7 +11,8 @@
 import 'package:collection/collection.dart' show SetEquality;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:note_core/note_core.dart' show Note, NoteId, PageSearchHit;
+import 'package:note_core/note_core.dart'
+    show Note, NoteId, PageSearchHit, SearchSource;
 
 import '../../dnd/library_drag_scope.dart';
 import '../../l10n/library_strings.dart';
@@ -91,6 +92,11 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
   void _openHit(Note note, PageSearchHit hit) {
     if (note.requiresNewerApp) {
       openLibraryNote(context, note);
+      return;
+    }
+    // (v2.17-md) an MD 문서 hit lands on the match in the document.
+    if (note.isMarkdown || hit.source == SearchSource.markdown) {
+      LibraryScope.read(context).openMarkdown(note.id, query: _query);
       return;
     }
     LibraryScope.read(context)

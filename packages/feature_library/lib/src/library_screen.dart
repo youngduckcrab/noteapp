@@ -30,6 +30,14 @@ typedef LibraryOpenNoteAt = void Function(
   Rect? focusRectPt,
 );
 
+/// (v2.17-md, C217M-11) Opens an MD 문서; [query] = the search to land on, [edit] = open in
+/// edit mode (a new document).
+typedef LibraryOpenMarkdown = void Function(
+  String noteId, {
+  String? query,
+  bool edit,
+});
+
 /// The library (home) screen. The app shell routes `/` (folderId null) and
 /// `/folders/:folderId` to it; the screen knows no router and only calls the
 /// callbacks below. The only provider the app shell must override is CORE's
@@ -42,6 +50,7 @@ class LibraryScreen extends ConsumerStatefulWidget {
     required this.onOpenNote,
     required this.onOpenSettings,
     this.onOpenNoteAt,
+    this.onOpenMarkdown,
   });
 
   /// The folder shown in the content area; null is the top level ('홈').
@@ -63,6 +72,10 @@ class LibraryScreen extends ConsumerStatefulWidget {
   // (v2.0) 2차 foundation step R2-B6: stored only; the '노트 내용' search
   // results (L2-02, L2-03) call it.
   final LibraryOpenNoteAt? onOpenNoteAt;
+
+  /// (v2.17-md) An MD 문서 (Note.isMarkdown) from a card, a list row, a search hit or
+  /// '새 MD 문서' / 'MD 가져오기'. null → onOpenNote(noteId) (the app shell redirects).
+  final LibraryOpenMarkdown? onOpenMarkdown;
 
   @override
   ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
@@ -194,6 +207,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   /// (v2, 6.1.4) A content hit: page + rect; the note alone without
   /// onOpenNoteAt (page ignored). LIBRARY never calls markOpened (S-5).
+  void _openMarkdown(NoteId id, {String? query, bool edit = false}) {
+    if (!mounted) return;
+    _closeDrawer();
+    final open = widget.onOpenMarkdown;
+    if (open != null) {
+      open(id, query: query, edit: edit);
+    } else {
+      widget.onOpenNote(id);
+    }
+  }
+
   void _openNoteAt(NoteId noteId, PageId pageId, Rect? focusRectPt) {
     if (!mounted) return;
     _closeDrawer();
@@ -334,6 +358,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       openFolder: _openFolder,
       openNote: _openNote,
       openNoteAt: _openNoteAt,
+      openMarkdown: _openMarkdown,
       openSettings: _openSettings,
       openDrawer: _openDrawer,
       closeDrawer: _closeDrawer,

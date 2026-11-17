@@ -14,6 +14,7 @@
 // Table-driven: each scenario lists which contract 7.3.3 rows it expects.
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_library/feature_library.dart';
+import 'package:feature_markdown/slots.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -194,6 +195,10 @@ Set<Object> _expected({
       libraryPdfImportActionProvider,
       libraryPdfExportActionProvider,
     },
+    // (v2.17-md) the MD 문서 slots — in every scenario (no PDF engine needed).
+    libraryMarkdownImportActionProvider,
+    libraryMarkdownExportActionProvider,
+    markdownExportActionProvider,
     // (handwriting search) the recognition contribution's library slot.
     if (recognition) libraryInkSearchProvider,
     // (v2.13-search) … and the editor's in-note search slot.

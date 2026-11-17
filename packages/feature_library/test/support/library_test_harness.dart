@@ -19,6 +19,7 @@ final class LibraryTestHarness {
     this.size = TestSizes.ipad13Landscape,
     this.extraOverrides = const [],
     this.withOpenNoteAt = true,
+    this.withOpenMarkdown = true,
   });
 
   final FakeLibraryBackend backend;
@@ -32,6 +33,10 @@ final class LibraryTestHarness {
   /// (v2) Passes onOpenNoteAt (→ [log]); false leaves it null so content
   /// hits fall back to onOpenNote (6.1.4).
   final bool withOpenNoteAt;
+
+  /// (v2.17-md) Passes onOpenMarkdown (→ [log] `'md:<id>'`, `' q=<query>'`, `' edit'`);
+  /// false leaves it null (MD 문서 open through onOpenNote).
+  final bool withOpenMarkdown;
   final NavigationLog log = NavigationLog();
 
   final GlobalKey<_RouterStandInState> _routerKey = GlobalKey();
@@ -89,6 +94,11 @@ final class NavigationLog {
     openNoteAt.clear();
   }
 
+  void _openMarkdown(String noteId, {String? query, bool edit = false}) =>
+      entries.add(
+        'md:$noteId${query == null ? '' : ' q=$query'}${edit ? ' edit' : ''}',
+      );
+
   void _openNoteAt(String noteId, String pageId, Rect? rect) {
     openNoteAt.add((noteId, pageId, rect));
     entries.add(
@@ -123,6 +133,7 @@ class _RouterStandInState extends State<_RouterStandIn> {
       },
       onOpenNote: (id) => h.log.entries.add('note:$id'),
       onOpenNoteAt: h.withOpenNoteAt ? h.log._openNoteAt : null,
+      onOpenMarkdown: h.withOpenMarkdown ? h.log._openMarkdown : null,
       onOpenSettings: () => h.log.entries.add('settings'),
     );
   }

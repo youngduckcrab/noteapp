@@ -4,7 +4,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart'
-    show FolderId, Note, clockProvider, folderTreeProvider;
+    show
+        FolderId,
+        MarkdownLimits,
+        Note,
+        clockProvider,
+        folderTreeProvider,
+        markdownDocProvider;
 
 import '../../l10n/library_date_format.dart';
 import '../../l10n/library_strings.dart';
@@ -56,9 +62,16 @@ String watchNoteMeta(
   final modified = formatLibraryDate(note.updatedAt, now: now);
   switch (style) {
     case NoteMetaStyle.modified:
-      return listRow
-          ? LibraryStrings.noteListMeta(modified, note.pageCount)
-          : modified;
+      if (!listRow) return modified;
+      // (v2.17-md, 08-markdown 9) an MD 문서 row: '<modified> · 문서 · 2.1 KB'.
+      if (note.isMarkdown) {
+        final doc = ref.watch(markdownDocProvider(note.id)).value;
+        return LibraryStrings.markdownListMeta(
+          modified,
+          doc == null ? null : MarkdownLimits.utf8BytesOf(doc.text),
+        );
+      }
+      return LibraryStrings.noteListMeta(modified, note.pageCount);
     case NoteMetaStyle.recent:
       final location = watchLocationLabel(ref, note.folderId);
       final openedAt = note.lastOpenedAt;

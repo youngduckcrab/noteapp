@@ -1,6 +1,6 @@
 # 08 · MARKDOWN — MD 문서 v1 (선택안 ①: 파일 그대로 앱 안에서 보기 · 고치기)
 
-> 상태: **기반 구현됨 · 검토 반영** · 작성 2026-11-17 · 영역 ID **MD** · 바탕 HEAD `c100b05`(브랜치 `claude/note-app-planning-bk29xb`), 설계 `47e2fc3`, 기반 커밋은 이 문서와 같은 커밋 · 계약 행: 00-overview 7.9 **v2.17-md C217M-01~C217M-17**(이 문서 14절과 같음). 이 문서와 00-overview 7장이 다르면 7장이 우선한다. 데이터 · UX 검토 37건의 판정은 19절.
+> 상태: **기반 구현됨 · 검토 반영 · 트랙 A(데이터 · 동기화 · 검색 · 라이브러리 · 경로) 구현됨(`track/md-data`, 20절 · progress/markdown.md)** · 작성 2026-11-17 · 영역 ID **MD** · 바탕 HEAD `c100b05`(브랜치 `claude/note-app-planning-bk29xb`), 설계 `47e2fc3`, 기반 커밋은 이 문서와 같은 커밋 · 계약 행: 00-overview 7.9 **v2.17-md C217M-01~C217M-17**(이 문서 14절과 같음). 이 문서와 00-overview 7장이 다르면 7장이 우선한다. 데이터 · UX 검토 37건의 판정은 19절.
 >
 > 오너 요청: 'PDF뿐만 아니라 md파일도 읽을 수 있으면 좋겠다' → 오너 선택: **md 파일 자체를 앱 안에서 쓴다(필기 노트로 바꾸지 않음)**, 범위 **①**. ②(블록마다 펜 필기)와 ③(원본 파일과 살아 있는 연결)은 뒤 라운드다.
 >
@@ -726,3 +726,15 @@ final markdownOpenLinkProvider = Provider<MarkdownOpenLinkAction?>((ref) => null
 | U20 큰 목록 · 표, 한 줄 `$$`, data: 캐시, 줄바꿈 설정 | 일부 받아들임 | 앞 셋 받아들임. **'줄바꿈 그대로 보기' 설정은 거절**(v1 범위 · 설정 늘리기 — GFM이 오너가 가져올 파일들의 표준이고, 오너가 실제로 요청하면 설정 하나로 더할 수 있음) |
 | U21 공유 MIME · README 제목 · CP949 문구 | 받아들임 | 10.2 · 10.4 |
 | U22 골든 수 · 나란히 단추 · 뒤로 순서 · 실기기 수치 | 받아들임 | 12장, 8.4, 15.4 체크리스트 |
+
+---
+
+## 20. 트랙 A 구현 기록 (2026-11-17)
+
+진행 기록 전체는 [progress/markdown.md](../progress/markdown.md). 계약 행과 다른 점만:
+
+- C217M-07: L2는 `SyncStore.keepMarkdownConflictCopy(remote, versions)` 하나로 — 다운로드 파이프라인이 PurgeGuard 바로 뒤(적용 전)에 markdown 업서트마다 부른다. CORE가 판정(안 올린 text · 글 다름 · 받은 판본 > base · 남의 노드)과 사본 · base 갱신을 한 job에서 한다. `RemoteApplyReport`에는 더하지 않음(알림 `MarkdownConflictCopied`).
+- C217M-10: `url_launcher`는 Q1 미승인으로 넣지 않음 — 링크 시트는 복사만.
+- C217M-12: 공개 이름 `DocumentFile` · `DocumentOutputAction` · `DocumentShareFile`이 더 있음. `PickedTextFile`은 `{name, sizeBytes, readBytes}`.
+- 웹 예산: 기반 대비 main.dart.js **+18,473 B gzip**(2,026,031 → 2,044,504), 상한 2,000,000 over(기반부터) — 총괄 판단 요청(17절).
+

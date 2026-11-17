@@ -4,6 +4,8 @@
 //   note (⋯)            이름 변경 · 표지 변경 · ☆ 즐겨찾기 / ★ 해제 · 복사 ·
 //                       이동… · PDF로 내보내기 (only with the export slot,
 //                       4.3) · 휴지통으로 이동
+//   MD 문서 (⋯, v2.17-md) 이름 변경 · ☆ · 복사 · 이동… · .md로 내보내기 (only
+//                       with its slot) · 휴지통으로 이동 (no cover, no PDF)
 //   folder (⋯)          이름 변경 · 꾸미기 · 복사 · 이동… · 휴지통으로 이동
 //   sidebar tree row    이름 변경 · 꾸미기 · 새 하위 폴더 · 이동… · 휴지통으로 이동
 //
@@ -17,6 +19,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show Folder, Note;
 import 'package:ui_kit/ui_kit.dart';
 
+import '../../integration/markdown_flows.dart';
+import '../../integration/markdown_slots.dart';
 import '../../integration/pdf_flows.dart';
 import '../../integration/pdf_slots.dart';
 import '../../l10n/library_strings.dart';
@@ -35,10 +39,13 @@ List<Widget> itemMenuEntries(
   Folder? folder,
   bool sidebar = false,
   LibraryPdfExportAction? exportPdf,
+  LibraryMarkdownExportAction? exportMarkdown,
 }) {
   assert((note == null) != (folder == null), 'exactly one item');
   if (note != null) {
     final key = noteKey(note.id);
+    // (v2.17-md, C217M-11) an MD 문서: no cover, no PDF export; '.md로 내보내기'.
+    final markdown = note.isMarkdown;
     return [
       MenuItemButton(
         leadingIcon: AppIcon(AppIconKind.rename),
@@ -46,11 +53,12 @@ List<Widget> itemMenuEntries(
             runRenameFlow(context, item: key, currentName: note.title),
         child: const Text(LibraryStrings.rename),
       ),
-      MenuItemButton(
-        leadingIcon: AppIcon(AppIconKind.cover),
-        onPressed: () => runCoverFlow(context, note),
-        child: const Text(LibraryStrings.changeCover),
-      ),
+      if (!markdown)
+        MenuItemButton(
+          leadingIcon: AppIcon(AppIconKind.cover),
+          onPressed: () => runCoverFlow(context, note),
+          child: const Text(LibraryStrings.changeCover),
+        ),
       MenuItemButton(
         leadingIcon: AppIcon(
           note.isFavorite ? AppIconKind.favoriteOn : AppIconKind.favorite,
@@ -78,7 +86,23 @@ List<Widget> itemMenuEntries(
             runMoveFlow(context, items: [key], parents: {key: note.folderId}),
         child: const Text(LibraryStrings.moveTo),
       ),
-      if (exportPdf != null)
+      if (markdown && exportMarkdown != null)
+        ValueListenableBuilder<bool>(
+          valueListenable: libraryMarkdownExportRunning(context),
+          builder: (_, running, _) => MenuItemButton(
+            key: const Key('library.menu.exportMarkdown'),
+            leadingIcon: AppIcon(AppIconKind.exportMarkdown),
+            onPressed: running
+                ? null
+                : () => runLibraryMarkdownExport(
+                    context,
+                    action: exportMarkdown,
+                    noteId: note.id,
+                  ),
+            child: const Text(LibraryStrings.exportMarkdown),
+          ),
+        ),
+      if (!markdown && exportPdf != null)
         ValueListenableBuilder<bool>(
           valueListenable: libraryPdfExportRunning(context),
           builder: (_, running, _) => MenuItemButton(
@@ -154,12 +178,16 @@ class ItemMenuButton extends ConsumerWidget {
     final exportPdf = note == null
         ? null
         : ref.watch(libraryPdfExportActionProvider);
+    final exportMarkdown = note == null
+        ? null
+        : ref.watch(libraryMarkdownExportActionProvider);
     return MenuAnchor(
       menuChildren: itemMenuEntries(
         context,
         note: note,
         folder: folder,
         exportPdf: exportPdf,
+        exportMarkdown: exportMarkdown,
       ),
       builder: (context, controller, _) => IconButton(
         icon: AppIcon(AppIconKind.more),

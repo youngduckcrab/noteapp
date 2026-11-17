@@ -15,6 +15,12 @@ export 'src/integration/ink_search_slot.dart'
         LibraryInkSearchPhase,
         LibraryInkSearchState,
         libraryInkSearchProvider;
+export 'src/integration/markdown_slots.dart'
+    show
+        LibraryMarkdownImportAction,
+        libraryMarkdownImportActionProvider,
+        LibraryMarkdownExportAction,
+        libraryMarkdownExportActionProvider;
 export 'src/integration/overrides.dart' show featureLibraryOverrides;
 export 'src/integration/pdf_slots.dart'
     show
@@ -22,5 +28,6 @@ export 'src/integration/pdf_slots.dart'
         libraryPdfImportActionProvider,
         LibraryPdfExportAction,
         libraryPdfExportActionProvider;
-export 'src/library_screen.dart' show LibraryScreen, LibraryOpenNoteAt;
+export 'src/library_screen.dart'
+    show LibraryScreen, LibraryOpenNoteAt, LibraryOpenMarkdown;
 export 'src/settings/library_settings_section.dart' show LibrarySettingsSection;

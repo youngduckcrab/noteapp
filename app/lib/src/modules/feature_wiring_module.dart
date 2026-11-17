@@ -7,6 +7,7 @@ import 'dart:async';
 
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_library/feature_library.dart';
+import 'package:feature_markdown/slots.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -18,6 +19,7 @@ import 'package:pencil_bridge/pencil_bridge.dart' show PencilCapabilities;
 import '../bootstrap/app_module.dart';
 import '../errors/app_error_log.dart';
 import '../pencil/pencil_stylus_extras.dart';
+import 'markdown_wiring.dart';
 import 'media_wiring.dart';
 import 'pdf_module.dart';
 import 'pdf_wiring.dart';
@@ -47,7 +49,11 @@ final class FeatureWiringModule extends AppModule {
     /// mediaImageImporterOrNull (media_io supportedImageSources +
     /// importImageForNote — works without initializeMediaIo).
     this._imageImporter = mediaImageImporterOrNull,
-  });
+    LibraryMarkdownImportAction? importMarkdown,
+  }) : _importMarkdown = importMarkdown ?? markdownImportAction();
+
+  /// (v2.17-md) 'MD 가져오기' (tests give a fake picker).
+  final LibraryMarkdownImportAction _importMarkdown;
 
   static const String moduleId = 'featureWiring';
 
@@ -246,6 +252,13 @@ final class FeatureWiringModule extends AppModule {
         libraryPdfImportActionProvider.overrideWithValue(_importPdf),
         libraryPdfExportActionProvider.overrideWithValue(_exportPdf),
       ],
+      // (v2.17-md, C217M-11 · 15) MD 문서 import / export: pdf_io's file helpers need no
+      // PDF engine, so they do not wait for the PDF module. No link opener (Q1 open).
+      libraryMarkdownImportActionProvider.overrideWithValue(_importMarkdown),
+      libraryMarkdownExportActionProvider.overrideWithValue(
+        markdownLibraryExportAction(),
+      ),
+      markdownExportActionProvider.overrideWithValue(exportMarkdownText),
       if (_inkSearch(contributions) case final inkSearch?)
         libraryInkSearchProvider.overrideWith(inkSearch),
       if (_noteInkSearch(contributions) case final inkSearch?)

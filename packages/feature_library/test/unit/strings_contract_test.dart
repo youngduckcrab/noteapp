@@ -42,7 +42,7 @@ void main() {
     expect(LibraryStrings.contentTruncated, '내용 결과가 많아요. 검색어를 더 입력해 보세요.');
     expect(
       [for (final s in SearchSource.values) LibraryStrings.sourceLabel(s)],
-      ['손글씨', 'PDF', '텍스트', '수식'],
+      ['손글씨', 'PDF', '텍스트', '수식', '문서'], // (v2.17-md) MD 문서 body
     );
     expect(LibraryStrings.pageLabel(3), '3쪽');
     expect(LibraryStrings.pageUnknown, '페이지');
