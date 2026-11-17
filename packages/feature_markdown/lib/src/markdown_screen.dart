@@ -1061,7 +1061,14 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
         : null;
     switch (mode) {
       case _Mode.view:
+        // StackFit.expand: the Offstage editor (kept mounted so its cursor, scroll and
+        // IME state survive 보기) is the Stack's only non-positioned child, and an
+        // Offstage reports the smallest size its constraints allow. With the default
+        // loose fit and the Column's loose cross-axis width that is zero, so the Stack
+        // — and the Positioned.fill 보기 in it — was 0 px wide after 편집 → 보기 and
+        // the text broke one character per line (owner report).
         return Stack(
+          fit: StackFit.expand,
           children: [
             if (editor != null)
               Offstage(child: TickerMode(enabled: false, child: editor)),

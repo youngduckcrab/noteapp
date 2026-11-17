@@ -8,7 +8,8 @@
 //   stored and the MD card shows it → library search finds the body → the hit opens the
 //   document at /md/<id>?q= with the landing highlight → ⋯ › .md로 내보내기 › 저장 gives the
 //   stored text byte for byte, named from the title → back → 새로 만들기 › 새 MD 문서 opens
-//   an empty document in 편집 → back → ⋯ › 휴지통으로 이동 → 휴지통 → 복원 → the card is back.
+//   an empty document in 편집 → type → back (보기 at full width) → back → ⋯ › 휴지통으로
+//   이동 → 휴지통 → 복원 → the card is back.
 //
 // Controls are found by the packages' widget keys (strings — the key classes of
 // feature_library live under src/, R7) and visible labels. Store work runs in real time
@@ -237,7 +238,21 @@ Future<void> runMarkdownEndToEnd(WidgetTester tester, CoreModule core) async {
   await _tap(tester, find.byKey(const Key('library.new.markdown')));
   await _tap(tester, find.text('만들기'));
   await _waitFor(tester, find.byKey(MarkdownKeys.editor), 'the new doc (편집)');
+  // Typed, then [←] → 보기: the rendered text keeps the full width (it collapsed to a
+  // 0 px column, one character per line, while the editor stayed mounted Offstage).
+  await tester.enterText(
+    find.byKey(MarkdownKeys.editor),
+    '# 새 문서\n\n처음 적는 문단입니다. The first paragraph.\n',
+  );
+  await _frames(tester);
   await _tap(tester, find.byKey(MarkdownKeys.back));
+  await _waitFor(tester, find.byKey(MarkdownKeys.view), 'the new doc (보기)');
+  expect(
+    tester.getSize(find.byKey(MarkdownKeys.view)).width,
+    greaterThan(
+      tester.view.physicalSize.width / tester.view.devicePixelRatio / 2,
+    ),
+  );
   await _tap(tester, find.byKey(MarkdownKeys.back));
   await _waitFor(tester, find.byType(LibraryScreen), 'the library (4)');
   await pumpUntil(
